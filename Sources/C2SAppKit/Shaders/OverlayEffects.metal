@@ -64,8 +64,8 @@ static inline float2 c2s_lissajous(float t, int i) {
     const float2 q = position / minDim;
     const float2 tipQ = tipPoint / minDim;
 
-    // spread ≈ 0.12×min(size) 起步,tracking 收窄到 ~0.06
-    const float spread = mix(0.12f, 0.06f, ta);
+    // spread:idle 0.15(更大的四色云团,覆盖更多屏面),tracking 收窄到 ~0.06
+    const float spread = mix(0.15f, 0.06f, ta);
     const float inv2s2 = 1.0f / (2.0f * spread * spread);
 
     // 逐点高斯加权(权重在 float 域计算,防 half 下溢)。
@@ -97,10 +97,12 @@ static inline float2 c2s_lissajous(float t, int i) {
     const float satBoost = mix(1.35f, 1.0f, ta);
     rgb = clamp(mix(float3(luma), rgb, clamp(saturation, 0.0f, 1.0f) * satBoost), 0.0f, 1.0f);
 
-    // 亮度掩码:idle 有全屏底 + 近点增辉;tracking 时底归零 → 纯笔尖局部辉光
-    // (2026-07-03 实机两轮:0.55×0.42 → 0.72×0.50 仍不够 → 底亮 0.85、层透明度 0.58;光球不动)
-    const float glow = 1.0f - exp(-1.2f * wSum);
-    const float base = mix(0.85f, 0.0f, ta);
+    // 亮度掩码(2026-07-03 第四轮定型):四色加权平均≈灰白,底亮越高全屏越
+    // 像白纱、颜色越淹 → 改为「低底亮 + 陡峭近点增辉」:色彩集中在四团
+    // 颜色分明的光晕里,远场几乎不发光。tracking(光球)增辉曲线保持 1.2 不变。
+    const float glowK = mix(2.2f, 1.2f, ta);
+    const float glow = 1.0f - exp(-glowK * wSum);
+    const float base = mix(0.38f, 0.0f, ta);
     const float intensity = base + (1.0f - base) * glow;
 
     // 乘视图自身 alpha(遮罩/边缘);输出预乘 alpha,严格钳在 [0,1]
