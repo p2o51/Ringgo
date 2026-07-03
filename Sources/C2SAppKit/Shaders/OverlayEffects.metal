@@ -90,14 +90,17 @@ static inline float2 c2s_lissajous(float t, int i) {
     const float3 meanRGB = (kC2SBrand[0] + kC2SBrand[1] + kC2SBrand[2] + kC2SBrand[3]) * 0.25f;
     float3 rgb = (mixRGB + meanRGB * 1e-4f) / (wSum + 1e-4f);
 
-    // ambient 降饱和:与亮度灰阶混合
+    // ambient 降饱和:与亮度灰阶混合。
+    // idle 额外过饱和 ×1.35(2026-07-03 实机:plusLighter 叠亮底会把颜色洗白,
+    // 拉高色度才看得见四色);tracking(光球)保持 1.0 不动 —— 用户已认可其观感。
     const float luma = dot(rgb, float3(0.2126f, 0.7152f, 0.0722f));
-    rgb = clamp(mix(float3(luma), rgb, clamp(saturation, 0.0f, 1.0f)), 0.0f, 1.0f);
+    const float satBoost = mix(1.35f, 1.0f, ta);
+    rgb = clamp(mix(float3(luma), rgb, clamp(saturation, 0.0f, 1.0f) * satBoost), 0.0f, 1.0f);
 
     // 亮度掩码:idle 有全屏底 + 近点增辉;tracking 时底归零 → 纯笔尖局部辉光
-    // (2026-07-03 实机:idle 0.55×0.42 太透看不见 → 底亮 0.72、层透明度 0.50;光球不动)
+    // (2026-07-03 实机两轮:0.55×0.42 → 0.72×0.50 仍不够 → 底亮 0.85、层透明度 0.58;光球不动)
     const float glow = 1.0f - exp(-1.2f * wSum);
-    const float base = mix(0.72f, 0.0f, ta);
+    const float base = mix(0.85f, 0.0f, ta);
     const float intensity = base + (1.0f - base) * glow;
 
     // 乘视图自身 alpha(遮罩/边缘);输出预乘 alpha,严格钳在 [0,1]
