@@ -26,6 +26,9 @@ struct ResultWebView: NSViewRepresentable {
     var onFailure: ((String) -> Void)?
     /// 主 frame URL 变化(multisearch 需要拿到带 vsrid 的当前结果页 URL)。
     var onURLChange: ((URL?) -> Void)?
+    /// 离开 Google 域的主框架导航(点结果链接/重定向落地/target=_blank)→ 交给详情屏。
+    /// 结果面板永远停在 Google 上下文,外部页面在旁边的详情屏打开(2026-07-03 双联屏)。
+    var onOpenDetail: ((URL) -> Void)?
 
     /// iPhone Safari UA:面板是手机比例(390pt),必须要 Google 的**移动版**布局;
     /// 桌面 UA 会按桌面宽度渲染导致横向裁切。上传与结果同一 UA(会话一致)。
@@ -90,15 +93,35 @@ struct ResultWebView: NSViewRepresentable {
 
     final class Coordinator: NSObject, WKNavigationDelegate, WKUIDelegate {
 
-        // target=_blank / window.open:不开新窗口,直接在当前视图加载
+        // target=_blank / window.open:外部站点 → 详情屏;Google 内链就地加载
         func webView(_ webView: WKWebView,
                      createWebViewWith configuration: WKWebViewConfiguration,
                      for navigationAction: WKNavigationAction,
                      windowFeatures: WKWindowFeatures) -> WKWebView? {
-            if navigationAction.targetFrame == nil {
-                webView.load(navigationAction.request)
+            if navigationAction.targetFrame == nil, let url = navigationAction.request.url {
+                if let onOpenDetail = parent.onOpenDetail, ResultWebView.isExternalDestination(url) {
+                    onOpenDetail(url)
+                } else {
+                    webView.load(navigationAction.request)
+                }
             }
             return nil
+        }
+
+        /// 主框架驶向 Google 生态之外(点结果链接 / google.com/url 重定向落地)
+        /// → 取消并交给详情屏:结果面板永远停在 Google 上下文(2026-07-03 双联屏)。
+        func webView(_ webView: WKWebView,
+                     decidePolicyFor navigationAction: WKNavigationAction,
+                     decisionHandler: @escaping (WKNavigationActionPolicy) -> Void) {
+            if let onOpenDetail = parent.onOpenDetail,
+               navigationAction.targetFrame?.isMainFrame ?? true,
+               let url = navigationAction.request.url,
+               ResultWebView.isExternalDestination(url) {
+                onOpenDetail(url)
+                decisionHandler(.cancel)
+                return
+            }
+            decisionHandler(.allow)
         }
         var parent: ResultWebView
         var lastSource: WebSource?
@@ -154,6 +177,15 @@ struct ResultWebView: NSViewRepresentable {
             else { return }
             parent.onFailure?("图像搜索网络连接失败：\(error.localizedDescription)")
         }
+    }
+
+    /// Google 生态之外 = 详情屏领地(结果面板不离开 Google 上下文)。
+    static func isExternalDestination(_ url: URL) -> Bool {
+        guard let scheme = url.scheme?.lowercased(), scheme.hasPrefix("http"),
+              let host = url.host?.lowercased() else { return false }
+        let internalSuffixes = ["google.com", "gstatic.com", "googleusercontent.com",
+                                "googleapis.com", "youtube.com", "ytimg.com"]
+        return !internalSuffixes.contains { host == $0 || host.hasSuffix("." + $0) }
     }
 
     /// 只把 Lens 会话自身的 403 当作匿名风控;验证码、登录页和普通外链必须照常展示。

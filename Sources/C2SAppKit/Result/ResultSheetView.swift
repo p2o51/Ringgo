@@ -33,6 +33,10 @@ public final class ResultSheetModel: ObservableObject {
     /// 选区翻译模式 chip(nil = 非翻译模式):药丸里显示「翻译 · 目标语言」,
     /// 真实查询是 prompt 包装 + AI Mode,药丸文本仍是原文(可编辑重译)。
     @Published public var translateChipLabel: String?
+    /// 详情屏(双联手机屏):点结果里的外部链接后在旁边展开;nil = 收起。
+    @Published public var detailURL: URL?
+    /// 同一链接再次点击也要重载。
+    @Published public var detailToken = 0
     public init() {}
 }
 
@@ -97,6 +101,10 @@ struct ResultSheetView: View {
             let panelSize = Self.panelSize(in: geo.size)
             let center = Self.clamped(currentCenter(in: geo.size, panel: panelSize),
                                       in: geo.size, panel: panelSize)
+            let detailCenter = Self.clamped(
+                CGPoint(x: center.x + (model.dockTrailing ? -1 : 1) * (panelSize.width + 14),
+                        y: center.y),
+                in: geo.size, panel: panelSize)
             panel(container: geo.size, size: panelSize)
                 .position(center)
                 .offset(x: (isHidden && !motionReduced) ? 24 : 0) // 隐藏时轻微右滑 + 淡出
@@ -110,9 +118,31 @@ struct ResultSheetView: View {
                            value: model.dockTrailing)
                 .allowsHitTesting(!isHidden) // 隐藏时绝不挡覆盖层手势
                 .disabled(isHidden)          // 并释放键盘焦点,防止盲打进隐形输入框
+
+            // 详情屏:贴主面板靠屏幕中心一侧,随主面板拖动(中心由主面板推导)
+            if let detailURL = model.detailURL, !isHidden {
+                DetailPanel(url: detailURL,
+                            token: model.detailToken,
+                            size: panelSize,
+                            reduceEffects: reduceEffects,
+                            onClose: { model.detailURL = nil })
+                    .position(detailCenter)
+                    .transition(motionReduced
+                                ? .opacity
+                                : .opacity.combined(with: .move(
+                                    edge: model.dockTrailing ? .trailing : .leading)))
+            }
         }
+        .animation(motionReduced ? .easeInOut(duration: 0.15)
+                                 : .spring(response: 0.4, dampingFraction: 0.85),
+                   value: model.detailURL)
         .onChange(of: isHidden) { _, hidden in
-            if hidden { editText = "" } else { editText = syncedQuery ?? "" }
+            if hidden {
+                editText = ""
+                model.detailURL = nil // 主面板收起,详情屏一并收
+            } else {
+                editText = syncedQuery ?? ""
+            }
         }
         .onChange(of: syncedQuery) { _, q in
             // coordinator 发起新搜索时把查询同步进可编辑框(圈选文字直接进框)
@@ -177,6 +207,23 @@ struct ResultSheetView: View {
                 .fill(Color.secondary.opacity(0.4))
                 .frame(width: 36, height: 5)
             HStack {
+                Button {
+                    if let url = model.currentPageURL {
+                        NSWorkspace.shared.open(url)
+                    }
+                } label: {
+                    Image(systemName: "arrow.up.forward.app")
+                        .font(.system(size: 13, weight: .medium))
+                        .foregroundStyle(.secondary)
+                }
+                .buttonStyle(.plain)
+                .padding(.leading, 10)
+                .disabled(isLensContent || model.currentPageURL == nil)
+                .opacity(isLensContent ? 0.3 : 1)
+                .help(isLensContent
+                      ? "Lens 结果与本面板会话绑定,外部浏览器打开会失效"
+                      : "在默认浏览器中打开")
+                .accessibilityLabel("在浏览器中打开")
                 Spacer()
                 Button {
                     // 与 Esc 同义:退出整个覆盖层,不是只收面板(2026-07-03 用户拍板)
@@ -292,6 +339,10 @@ struct ResultSheetView: View {
                                   onURLChange: { url in
                                       model.currentPageURL = url
                                       model.onPageURLChanged?(url)
+                                  },
+                                  onOpenDetail: { url in
+                                      model.detailToken += 1
+                                      model.detailURL = url
                                   })
                 }
                 if webLoading {
