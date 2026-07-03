@@ -182,17 +182,22 @@ struct ResultSheetView: View {
         .accessibilityHint("拖动可移动面板")
     }
 
+    /// 拖动坐标系必须用 .global:手势挂在「跟着拖拽移动的视图」上,
+    /// .local 的坐标系会随视图一起动,translation 读数与已应用位移互咬 → 抖动。
+    /// 位移是增量量,global 与容器 local 同尺度,可直接叠加。
     private func moveDrag(container: CGSize, panel: CGSize) -> some Gesture {
-        DragGesture(minimumDistance: 2)
+        DragGesture(minimumDistance: 2, coordinateSpace: .global)
             .onChanged { value in
                 if dragStartCenter == nil {
                     dragStartCenter = currentCenter(in: container, panel: panel)
                 }
                 guard let start = dragStartCenter else { return }
-                panelCenter = Self.clamped(
+                let clamped = Self.clamped(
                     CGPoint(x: start.x + value.translation.width,
                             y: start.y + value.translation.height),
                     in: container, panel: panel)
+                // 对齐整数点位,避免亚像素渲染的细微闪动
+                panelCenter = CGPoint(x: clamped.x.rounded(), y: clamped.y.rounded())
             }
             .onEnded { _ in
                 dragStartCenter = nil
