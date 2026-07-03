@@ -127,6 +127,12 @@ struct OverlayRootView: View {
                 TeardropHandle(pointsUp: true, anchor: anchors.start)
                 TeardropHandle(pointsUp: false, anchor: anchors.end)
             }
+            // 重选文字时手柄滑移到新位置;拖手柄本身时跟手零动画
+            .animation((reduceMotion || reduceEffects || viewModel.isDraggingHandle)
+                       ? nil
+                       : .spring(response: 0.30, dampingFraction: 0.80),
+                       value: viewModel.highlightedWords)
+            .transition(.opacity)
         }
     }
 
@@ -172,10 +178,15 @@ struct OverlayRootView: View {
                                 removal: .opacity))
             }
         }
-        // 只对「出现/消失」做动画(value = 是否有框);拖动调整尺寸保持跟手不加动画
+        // 出现/消失:弹入/淡出(value = 是否有框)
         .animation(motionReduced ? .easeOut(duration: 0.12)
                                  : .spring(response: 0.28, dampingFraction: 0.78),
                    value: viewModel.rectSelection != nil)
+        // 重选(轻点别处出新框):旧框滑移变形过去;拖角/拖边调整时跟手零动画
+        .animation((motionReduced || viewModel.isResizingRect)
+                   ? nil
+                   : .spring(response: 0.30, dampingFraction: 0.80),
+                   value: viewModel.rectSelection)
     }
 
     /// 光谱辉光环:颜色沿边框持续流转(角向渐变旋转)+ 轻微呼吸;减弱动态 → 静态。

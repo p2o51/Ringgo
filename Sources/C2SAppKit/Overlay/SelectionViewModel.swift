@@ -156,6 +156,18 @@ final class SelectionViewModel: ObservableObject {
         return rect
     }
 
+    /// 正在拖角/拖边调整矩形(此时矩形变化必须跟手,不加动画)。
+    var isResizingRect: Bool {
+        if case .rectResize = dragMode { return true }
+        return false
+    }
+
+    /// 正在拖泪滴手柄(同上,选区变化跟手)。
+    var isDraggingHandle: Bool {
+        if case .handle = dragMode { return true }
+        return false
+    }
+
     // MARK: - 手势入口(OverlayRootView 的 DragGesture,覆盖层点坐标)
 
     func dragChanged(location: CGPoint, start: CGPoint) {
