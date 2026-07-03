@@ -163,15 +163,9 @@ struct OverlayRootView: View {
                         .frame(width: bracket.width + 10, height: bracket.height + 10)
                         .offset(x: bracket.minX - 5, y: bracket.minY - 5)
                 }
-                // 边缘 hairline:拖边调整时框体仍可读
-                RoundedRectangle(cornerRadius: 10, style: .continuous)
-                    .strokeBorder(Color.white.opacity(0.28), lineWidth: 1)
-                    .frame(width: bracket.width, height: bracket.height)
-                    .offset(x: bracket.minX, y: bracket.minY)
-                // 白色四角括号(圆角、round cap,原版裁剪框语汇)
-                CornerBracketsShape(rect: bracket)
-                    .stroke(Color.white, style: StrokeStyle(lineWidth: 4, lineCap: .round, lineJoin: .round))
-                    .shadow(color: .black.opacity(0.25), radius: 2)
+                // 四角括号手柄(2026-07-03 用户拍板):加粗 + Liquid Glass 本体;
+                // 边框 hairline 移除(边上那圈"玻璃线"不要,玻璃只在四角)
+                glassBrackets(bracket)
             }
             .frame(width: size.width, height: size.height, alignment: .topLeading)
         }
@@ -207,14 +201,44 @@ struct OverlayRootView: View {
     }
 }
 
+extension OverlayRootView {
+    /// 四角括号手柄:粗臂(7pt)+ Liquid Glass 本体(macOS 26+;旧系统回退薄材质),
+    /// 外缘一圈 45% 白描边保证任意背景下可读,再垫极轻投影。
+    @ViewBuilder func glassBrackets(_ rect: CGRect) -> some View {
+        let stroked = StrokedBracketsShape(rect: rect, lineWidth: 7)
+        Group {
+            if #available(macOS 26.0, *) {
+                Color.clear.glassEffect(.regular, in: stroked)
+            } else {
+                stroked.fill(.ultraThinMaterial)
+            }
+        }
+        .overlay(stroked.stroke(Color.white.opacity(0.45), lineWidth: 0.75))
+        .shadow(color: .black.opacity(0.28), radius: 3)
+        .allowsHitTesting(false)
+    }
+}
+
+/// 括号的描边轮廓面(粗臂圆头):把 L 形路径转成可填充/上玻璃的闭合形状。
+private struct StrokedBracketsShape: Shape {
+    let rect: CGRect
+    let lineWidth: CGFloat
+
+    func path(in r: CGRect) -> Path {
+        CornerBracketsShape(rect: rect)
+            .path(in: r)
+            .strokedPath(StrokeStyle(lineWidth: lineWidth, lineCap: .round, lineJoin: .round))
+    }
+}
+
 /// 四角括号(原版裁剪框语汇):每角一条「臂-圆角-臂」的 L 形路径,
 /// 臂长/圆角随选框尺寸自适应(小框不塌)。rect 为括号外接矩形(覆盖层坐标)。
 private struct CornerBracketsShape: Shape {
     let rect: CGRect
 
     func path(in _: CGRect) -> Path {
-        let arm = min(26, rect.width / 3.5, rect.height / 3.5)
-        let r = min(12, arm * 0.55)
+        let arm = min(32, rect.width / 3.2, rect.height / 3.2)
+        let r = min(15, arm * 0.55)
         var p = Path()
         // 左上
         p.move(to: CGPoint(x: rect.minX, y: rect.minY + arm))
