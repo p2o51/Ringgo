@@ -142,33 +142,65 @@ struct OverlayRootView: View {
     ]
 
     @ViewBuilder private func rectOverlay(size: CGSize) -> some View {
-        if let rect = viewModel.rectSelection {
-            let bracket = rect.insetBy(dx: -3, dy: -3) // 括号略微外扩,不压住内容
-            ZStack(alignment: .topLeading) {
-                // 框外压暗(比旧版重一档,框内保持原亮 → 原版"提取"感)
+        let motionReduced = reduceMotion || reduceEffects
+        ZStack(alignment: .topLeading) {
+            if let rect = viewModel.rectSelection {
+                let bracket = rect.insetBy(dx: -3, dy: -3) // 括号略微外扩,不压住内容
+                // 框外压暗(淡入即可,不参与弹入缩放)
                 Canvas { context, _ in
                     var dim = Path()
                     dim.addRect(CGRect(origin: .zero, size: size))
                     dim.addRoundedRect(in: rect, cornerSize: CGSize(width: 10, height: 10))
                     context.fill(dim, with: .color(.black.opacity(0.16)), style: FillStyle(eoFill: true))
                 }
-                // 光谱辉光环:紧贴选框边缘的柔化四色环(减弱动态时省略)
-                if !(reduceMotion || reduceEffects) {
-                    RoundedRectangle(cornerRadius: 16, style: .continuous)
-                        .strokeBorder(
-                            AngularGradient(colors: Self.spectrum, center: .center),
-                            lineWidth: 10)
-                        .blur(radius: 14)
-                        .opacity(0.5)
-                        .frame(width: bracket.width + 10, height: bracket.height + 10)
-                        .offset(x: bracket.minX - 5, y: bracket.minY - 5)
+                .frame(width: size.width, height: size.height)
+                .transition(.opacity)
+
+                // 光谱环 + 玻璃括号:生成时从框中心弹入(spring 缩放 + 淡入,原版"形态转化"一拍)
+                ZStack(alignment: .topLeading) {
+                    spectrumRing(bracket, motionReduced: motionReduced)
+                    glassBrackets(bracket)
                 }
-                // 四角括号手柄(2026-07-03 用户拍板):加粗 + Liquid Glass 本体;
-                // 边框 hairline 移除(边上那圈"玻璃线"不要,玻璃只在四角)
-                glassBrackets(bracket)
+                .frame(width: size.width, height: size.height, alignment: .topLeading)
+                .transition(motionReduced
+                            ? .opacity
+                            : .asymmetric(
+                                insertion: .scale(scale: 1.07,
+                                                  anchor: UnitPoint(x: rect.midX / size.width,
+                                                                    y: rect.midY / size.height))
+                                    .combined(with: .opacity),
+                                removal: .opacity))
             }
-            .frame(width: size.width, height: size.height, alignment: .topLeading)
         }
+        // 只对「出现/消失」做动画(value = 是否有框);拖动调整尺寸保持跟手不加动画
+        .animation(motionReduced ? .easeOut(duration: 0.12)
+                                 : .spring(response: 0.28, dampingFraction: 0.78),
+                   value: viewModel.rectSelection != nil)
+    }
+
+    /// 光谱辉光环:颜色沿边框持续流转(角向渐变旋转)+ 轻微呼吸;减弱动态 → 静态。
+    @ViewBuilder private func spectrumRing(_ bracket: CGRect, motionReduced: Bool) -> some View {
+        if motionReduced {
+            ringShape(bracket, angle: .zero).opacity(0.5)
+        } else {
+            TimelineView(.animation) { ctx in
+                let t = ctx.date.timeIntervalSinceReferenceDate
+                ringShape(bracket, angle: .degrees((t * 24).truncatingRemainder(dividingBy: 360)))
+                    .opacity(0.45 + 0.10 * sin(t * 1.6))
+            }
+        }
+    }
+
+    private func ringShape(_ bracket: CGRect, angle: Angle) -> some View {
+        RoundedRectangle(cornerRadius: 16, style: .continuous)
+            .strokeBorder(
+                AngularGradient(gradient: Gradient(colors: Self.spectrum),
+                                center: .center,
+                                angle: angle),
+                lineWidth: 10)
+            .blur(radius: 14)
+            .frame(width: bracket.width + 10, height: bracket.height + 10)
+            .offset(x: bracket.minX - 5, y: bracket.minY - 5)
     }
 
     // MARK: - 手势层(可视层全部 allowsHitTesting(false),手势统一从这里进状态机)

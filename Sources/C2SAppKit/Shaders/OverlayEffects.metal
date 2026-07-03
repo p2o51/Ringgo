@@ -102,8 +102,16 @@ static inline float2 c2s_lissajous(float t, int i) {
     // 颜色分明的光晕里,远场几乎不发光。tracking(光球)增辉曲线保持 1.2 不变。
     const float glowK = mix(2.2f, 1.2f, ta);
     const float glow = 1.0f - exp(-glowK * wSum);
-    const float base = mix(0.38f, 0.0f, ta);
-    const float intensity = base + (1.0f - base) * glow;
+    const float base = mix(0.50f, 0.0f, ta);
+    float intensity = base + (1.0f - base) * glow;
+
+    // idle 可读性(2026-07-03 结构性解法):微光聚拢到屏幕边缘
+    // (Android"光晕自边缘扩散"同构)——中部内容零遮罩,灰字不再被罩亮;
+    // 边缘因此可以更浓。tracking(光球)不受限,随笔尖走到哪亮到哪。
+    const float edgeDist = min(min(position.x, size.x - position.x),
+                               min(position.y, size.y - position.y)) / minDim;
+    const float edgeMask = 1.0f - smoothstep(0.04f, 0.26f, edgeDist);
+    intensity *= mix(edgeMask, 1.0f, ta);
 
     // 乘视图自身 alpha(遮罩/边缘);输出预乘 alpha,严格钳在 [0,1]
     const float a = clamp(intensity * max(opacity, 0.0f), 0.0f, 1.0f) * float(color.a);
