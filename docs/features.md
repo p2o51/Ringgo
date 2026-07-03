@@ -24,13 +24,13 @@
 | F5 | 文本搜索 → 结果底部面板(WKWebView) | MVP(切片A) | 定稿 |
 | F6 | 可调矩形选区(图片/无文字区) | 切片B/D | 定稿 |
 | F7 | 图像/视觉搜索(直传 Lens + 302 + 面板) | 切片C | 定稿(需修 multipart) |
-| F8 | 轻点图片 → 物体吸附(显著性/实例分割) | 切片D | 已验证原型 |
+| F8 | 轻点图片 → 物体吸附(显著性/矩形;实例分割 TODO) | 切片D | **已实现(2026-07-03)** |
 | F9 | 条码/二维码识别 + 原生意图(URL/Wi-Fi/联系人/日历/地图/电话/邮件) | 切片D | 定稿(需补权限串) |
 | F10 | 翻译(选区 + 整屏,后续边滚边译) | 切片D | 待实现(Apple Translation) |
 | F11 | Multisearch(选区 + 追加文字提问) | 切片D | 定稿 |
 | F12 | 复制/分享动作 | 切片B | 定稿 |
 | F13 | 设置(触发/外观/搜索/权限) | 切片A/B | 定稿 |
-| F14 | 四点渐变微光 + 涟漪(质感层) | 切片E | 原型已出 |
+| F14 | 四点渐变微光 + 涟漪(质感层) | 切片E | **已实现(2026-07-03,SwiftUI Shader)** |
 | — | 非目标:整段落跨屏抓取、账号登录、历史记录同步 | out | 明确不做(见 §5) |
 
 ---
@@ -97,8 +97,11 @@
 - ~~v1:URLSession multipart 直传 + `willPerformHTTPRedirection` 拦 302 读 `Location`~~ —— 因会话绑定被实测否定;`MultipartFormData`(修双反斜杠 bug 的字节级正确实现)保留在 C2SCore 备用。
 - 端点是逆向的、可能失效 → 做好监控与降级预案。
 
-### F8 · 轻点图片 → 物体吸附(已验证原型)
-- 抓屏后预跑:`VNGenerateForegroundInstanceMaskRequest`(macOS14,苹果"抠主体")/ `VNGenerateAttention|ObjectnessBasedSaliency` / `VNDetectRectanglesRequest`。
+### F8 · 轻点图片 → 物体吸附(已实现 2026-07-03)
+- **实现**:`ObjectDetectionService`(actor)与 OCR 并发预跑 objectness/attention 显著性 + 矩形检测(前景实例掩膜转 bbox 成本高,留 TODO);候选 → `ObjectSnap.filtered + dedupe`(IoU 去重留小框)。
+- **轻点**:吸附「含点、面积最小」候选框;**hover**:候选框 accent 20% 描边 + 极轻辉光提示。
+- **圈选闭合 → 贴合轮廓**(原版"形态转化"):笔画包围盒经 `ObjectSnap.bestMatch`(被包住的最大候选,IoU 兜底)吸附到物体真实边界;白色四角括号裁剪框 + 光谱辉光环(ui-style §4.3 v2)。
+- 原设计(供演进):`VNGenerateForegroundInstanceMaskRequest`(macOS14,苹果"抠主体")/ `VNGenerateAttention|ObjectnessBasedSaliency` / `VNDetectRectanglesRequest`。
 - 轻点 → 吸附到**含该点、面积最小**的检测框;都没有 → 回退到围绕点的默认框。hover 高亮候选框。
 - 与 F4 统一到一个 **HitRegion 模型**(词/物体/矩形/条码一张空间索引,`region.kind` 决定文本 vs 图搜路由),替代脆弱的"裁完再和 OCR 相交"。
 - 参考:`docs/reference/ObjectSnap.reference.swift`。
@@ -129,8 +132,10 @@
 - 关于:版本、许可。
 - **注意**:Settings 场景要注入所需环境对象(原项目漏了→崩)。
 
-### F14 · 四点渐变微光 + 涟漪(质感层,最后做)
-- 见 ui-style §4.2 与核心机制 §8。
+### F14 · 四点渐变微光 + 涟漪(已实现 2026-07-03)
+- **实现**:SwiftUI Shader(stitchable Metal)而非 MTKView —— `c2s_fourPointGradient`(四色点 Lissajous + 高斯加权,trackingAmount 收敛笔尖,saturation 降饱和)+ `c2s_ripple`(出现涟漪 1.1s 一次);状态机 idle → tracking(笔刷)→ ambient(定格)由选择状态派生。
+- **工程注意**:命令行 SwiftPM 不编 Metal → `default.metallib` 预编译进仓库(`Scripts/build-shaders.sh` 重新生成);减弱动态 → 静态渐变 + 无涟漪无跟随。
+- 设计规格见 ui-style §4.2 与核心机制 §8;蓄力阶段的微光预显(F1)待做。
 
 ---
 

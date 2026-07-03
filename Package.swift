@@ -14,6 +14,10 @@ let package = Package(
         .target(
             name: "C2SAppKit",
             dependencies: ["C2SCore"],
+            // 命令行 SwiftPM 不编 Metal(只有 Xcode 会)→ 预编译 default.metallib 进仓库,
+            // .metal 源仅存档;改 shader 后跑 Scripts/build-shaders.sh 重新生成。
+            exclude: ["Shaders/OverlayEffects.metal"],
+            resources: [.copy("Shaders/default.metallib")],
             swiftSettings: [.swiftLanguageMode(.v5)]
         ),
         // 可执行入口(@main,越薄越好)

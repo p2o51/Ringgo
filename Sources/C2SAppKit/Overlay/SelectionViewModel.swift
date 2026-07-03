@@ -27,6 +27,10 @@ final class SelectionViewModel: ObservableObject {
     @Published private(set) var brushPoints: [CGPoint] = []
     /// 当前高亮词(笔刷实时选区与定格选中共用)。
     @Published private(set) var highlightedWords: [OCRWord] = []
+    /// F8:物体/矩形候选框(覆盖层坐标,检测服务预跑产出)。
+    @Published private(set) var objectRegions: [CGRect] = []
+    /// hover 位置(吸附提示用,不进手势状态机)。
+    @Published var hoverLocation: CGPoint?
 
     // MARK: - 回调(OverlayWindowController 接线)
 
@@ -77,10 +81,24 @@ final class SelectionViewModel: ObservableObject {
         state = .none
         brushPoints = []
         highlightedWords = []
+        objectRegions = []
+        hoverLocation = nil
         engine = nil
         session = nil
         dragMode = nil
         pendingGesture = nil
+    }
+
+    /// 物体/矩形检测结果到达(F8;与 OCR 各自独立到达)。
+    func updateObjectRegions(_ regions: [CGRect]) {
+        objectRegions = regions
+    }
+
+    /// hover 吸附提示框(ui-style §4.4):不在词上、无进行中手势时,给出含点最小候选框。
+    var hoverSnapRegion: CGRect? {
+        guard let p = hoverLocation, dragMode == nil else { return nil }
+        if engine?.tappedWord(at: p) != nil { return nil }
+        return ObjectSnap.snap(point: p, boxes: objectRegions)
     }
 
     /// OCR 词框到达 → 重建引擎;若正在笔刷中,在新引擎上重放完整 path(= 全量重算)。
@@ -116,6 +134,11 @@ final class SelectionViewModel: ObservableObject {
                 state = .textSelected(words: selection, anchorID: word.id, endID: word.id)
                 highlightedWords = selection
                 onTextSearch(SelectionEngine.text(for: selection))
+            } else if let snapped = ObjectSnap.snap(point: p, boxes: objectRegions) {
+                // 词框到达时检测框可能也已就绪:补吸附(F8)
+                let rect = clampRect(snapped)
+                state = .rectSelection(rect: rect)
+                route(rect: rect)
             } else {
                 route(rect: fallbackRect)
             }
@@ -242,10 +265,11 @@ final class SelectionViewModel: ObservableObject {
             onTextSearch(SelectionEngine.text(for: selection))
             return
         }
-        // 空白/图片:以点为中心的可调矩形(夹进屏内)并按矩形路由
+        // 空白/图片:优先吸附到「含点、面积最小」的检测框(F8),否则默认框
         clearSelection()
         let half = tapRectSide / 2
-        let rect = clampRect(CGRect(x: p.x - half, y: p.y - half, width: tapRectSide, height: tapRectSide))
+        let fallback = CGRect(x: p.x - half, y: p.y - half, width: tapRectSide, height: tapRectSide)
+        let rect = clampRect(ObjectSnap.snap(point: p, boxes: objectRegions) ?? fallback)
         state = .rectSelection(rect: rect)
         if engine == nil {
             pendingGesture = .tap(p) // OCR 未完成:词框到达后先看是否点在词上
@@ -289,11 +313,15 @@ final class SelectionViewModel: ObservableObject {
             highlightedWords = selection
             onTextSearch(SelectionEngine.text(for: selection))
         } else {
-            // 空触碰 → 笔画包围盒(外扩 8pt,最小 40×40)转可调矩形
+            // 空触碰 → 笔画包围盒(外扩 8pt,最小 40×40)转可调矩形;
+            // 圈选闭合 → 贴合检测框(原版"手绘圈瞬间转化为贴合裁剪框",F8)
             highlightedWords = []
             var rect = Geometry.boundingBox(of: path) ?? CGRect(origin: p, size: .zero)
             rect = atLeast(rect.insetBy(dx: -8, dy: -8), minW: minRectSide, minH: minRectSide)
             rect = clampRect(rect)
+            if let snapped = ObjectSnap.bestMatch(for: rect, boxes: objectRegions) {
+                rect = clampRect(atLeast(snapped, minW: minRectSide, minH: minRectSide))
+            }
             state = .rectSelection(rect: rect)
             if engine == nil {
                 pendingGesture = .brush(path) // OCR 未完成:词框到达后按真实触碰定夺

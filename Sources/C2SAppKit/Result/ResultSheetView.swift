@@ -147,7 +147,7 @@ struct ResultSheetView: View {
                 .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
         }
         .frame(width: size.width, height: size.height)
-        .background(.ultraThinMaterial)
+        .panelGlass(in: shape)
         .clipShape(shape)
         .overlay(shape.strokeBorder(Color(nsColor: .separatorColor), lineWidth: 0.5))
         .shadow(color: Color.black.opacity(0.25), radius: 24, x: 0, y: 8)
@@ -337,5 +337,18 @@ private struct ResultSkeletonView: View {
 
     private var motionReduced: Bool {
         reduceMotion || reduceEffects
+    }
+}
+
+private extension View {
+    /// 面板底:macOS 26+ 用 Liquid Glass(系统级质感,2026-07-03 用户点名),
+    /// 旧系统回退 ultraThinMaterial;两个分支都由调用方再 clipShape。
+    @ViewBuilder
+    func panelGlass(in shape: some Shape) -> some View {
+        if #available(macOS 26.0, *) {
+            glassEffect(.regular, in: shape)
+        } else {
+            background(.ultraThinMaterial)
+        }
     }
 }

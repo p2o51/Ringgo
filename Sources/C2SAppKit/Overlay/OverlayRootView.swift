@@ -18,7 +18,15 @@ struct OverlayRootView: View {
         let size = capture.context.pointSize
         ZStack(alignment: .topLeading) {
             background(size: size)
+                // 出现涟漪(F14):以屏幕中心为源,一次 ~1.1s;减弱动态时禁用
+                .rippleOnAppear(origin: CGPoint(x: size.width / 2, y: size.height / 2),
+                                size: size,
+                                enabled: !(reduceMotion || reduceEffects))
             scrim(size: size)
+            // 四点渐变微光(F14):idle 全屏游走 → 笔刷时收敛笔尖 → 定格后 ambient
+            ShimmerLayer(phase: shimmerPhase, size: size, reduceEffects: reduceEffects || reduceMotion)
+                .frame(width: size.width, height: size.height)
+                .allowsHitTesting(false)
             brushCanvas(size: size)
                 .allowsHitTesting(false)
             wordHighlights
@@ -27,11 +35,26 @@ struct OverlayRootView: View {
                 .allowsHitTesting(false)
             rectOverlay(size: size)
                 .allowsHitTesting(false)
+            objectHint
+                .allowsHitTesting(false)
             interactionLayer(size: size)
             sheet
         }
         .frame(width: size.width, height: size.height, alignment: .topLeading)
         .coordinateSpace(name: Self.coordinateSpaceName)
+    }
+
+    /// 微光形态由选择状态派生(机制 §8 状态机:idle → tracking → ambient)。
+    private var shimmerPhase: ShimmerPhase {
+        switch viewModel.state {
+        case .brushing:
+            if let tip = viewModel.brushPoints.last { return .tracking(tip: tip) }
+            return .idle
+        case .textSelected, .rectSelection:
+            return .ambient
+        case .none:
+            return .idle
+        }
     }
 
     // MARK: - 背景(坐标 P0:像素与词框 1:1 对齐,靠显式点尺寸 frame)
@@ -56,7 +79,8 @@ struct OverlayRootView: View {
         .allowsHitTesting(false)
     }
 
-    // MARK: - 笔刷描边:白 6pt round + 外圈 +6pt 白 20% 柔光 + 笔尖 8pt 白点
+    // MARK: - 笔刷描边:白芯 6pt + 双层柔光(accent 外晕 + 白内晕,呼应原版
+    //          "中心偏白、边缘泛色"的荧光轨迹;用系统强调色而非写死蓝,保持 mac 生态)
 
     private func brushCanvas(size: CGSize) -> some View {
         let points = viewModel.brushPoints
@@ -65,11 +89,16 @@ struct OverlayRootView: View {
             if points.count > 1 {
                 var path = Path()
                 path.addLines(points)
-                context.stroke(path, with: .color(.white.opacity(0.2)),
-                               style: StrokeStyle(lineWidth: 12, lineCap: .round, lineJoin: .round))
+                context.stroke(path, with: .color(Color.accentColor.opacity(0.16)),
+                               style: StrokeStyle(lineWidth: 16, lineCap: .round, lineJoin: .round))
+                context.stroke(path, with: .color(.white.opacity(0.22)),
+                               style: StrokeStyle(lineWidth: 10, lineCap: .round, lineJoin: .round))
                 context.stroke(path, with: .color(.white),
                                style: StrokeStyle(lineWidth: 6, lineCap: .round, lineJoin: .round))
             }
+            // 笔尖:白点 + accent 光斑(bloom 感)
+            context.fill(Path(ellipseIn: CGRect(x: tip.x - 9, y: tip.y - 9, width: 18, height: 18)),
+                         with: .color(Color.accentColor.opacity(0.22)))
             context.fill(Path(ellipseIn: CGRect(x: tip.x - 4, y: tip.y - 4, width: 8, height: 8)),
                          with: .color(.white))
         }
@@ -103,26 +132,68 @@ struct OverlayRootView: View {
         }
     }
 
-    // MARK: - 可调矩形:accent 1.5pt 边框 + 四角把手 + 框外 10% 压暗
+    // MARK: - 可调矩形(2026-07-03 参照原版裁剪框重设计,ui-style §4.3):
+    //          白色圆角四角括号 + 光谱辉光环(品牌时刻)+ 框外加重压暗聚焦
+
+    private static let spectrum: [Color] = [
+        Color(red: 0.259, green: 0.522, blue: 0.957),  // Blue
+        Color(red: 0.918, green: 0.263, blue: 0.208),  // Red
+        Color(red: 0.984, green: 0.737, blue: 0.020),  // Yellow
+        Color(red: 0.204, green: 0.659, blue: 0.325),  // Green
+        Color(red: 0.259, green: 0.522, blue: 0.957),  // 回到 Blue,角向渐变闭环
+    ]
 
     @ViewBuilder private func rectOverlay(size: CGSize) -> some View {
         if let rect = viewModel.rectSelection {
-            Canvas { context, _ in
-                var dim = Path()
-                dim.addRect(CGRect(origin: .zero, size: size))
-                dim.addRect(rect)
-                context.fill(dim, with: .color(.black.opacity(0.10)), style: FillStyle(eoFill: true))
-                context.stroke(Path(rect), with: .color(Color.accentColor), lineWidth: 1.5)
-                let corners = [
-                    CGPoint(x: rect.minX, y: rect.minY), CGPoint(x: rect.maxX, y: rect.minY),
-                    CGPoint(x: rect.minX, y: rect.maxY), CGPoint(x: rect.maxX, y: rect.maxY),
-                ]
-                for c in corners {
-                    context.fill(Path(ellipseIn: CGRect(x: c.x - 4, y: c.y - 4, width: 8, height: 8)),
-                                 with: .color(Color.accentColor))
+            let bracket = rect.insetBy(dx: -3, dy: -3) // 括号略微外扩,不压住内容
+            ZStack(alignment: .topLeading) {
+                // 框外压暗(比旧版重一档,框内保持原亮 → 原版"提取"感)
+                Canvas { context, _ in
+                    var dim = Path()
+                    dim.addRect(CGRect(origin: .zero, size: size))
+                    dim.addRoundedRect(in: rect, cornerSize: CGSize(width: 10, height: 10))
+                    context.fill(dim, with: .color(.black.opacity(0.16)), style: FillStyle(eoFill: true))
                 }
+                // 光谱辉光环:紧贴选框边缘的柔化四色环(减弱动态时省略)
+                if !(reduceMotion || reduceEffects) {
+                    RoundedRectangle(cornerRadius: 16, style: .continuous)
+                        .strokeBorder(
+                            AngularGradient(colors: Self.spectrum, center: .center),
+                            lineWidth: 10)
+                        .blur(radius: 14)
+                        .opacity(0.5)
+                        .frame(width: bracket.width + 10, height: bracket.height + 10)
+                        .offset(x: bracket.minX - 5, y: bracket.minY - 5)
+                }
+                // 边缘 hairline:拖边调整时框体仍可读
+                RoundedRectangle(cornerRadius: 10, style: .continuous)
+                    .strokeBorder(Color.white.opacity(0.28), lineWidth: 1)
+                    .frame(width: bracket.width, height: bracket.height)
+                    .offset(x: bracket.minX, y: bracket.minY)
+                // 白色四角括号(圆角、round cap,原版裁剪框语汇)
+                CornerBracketsShape(rect: bracket)
+                    .stroke(Color.white, style: StrokeStyle(lineWidth: 4, lineCap: .round, lineJoin: .round))
+                    .shadow(color: .black.opacity(0.25), radius: 2)
             }
-            .frame(width: size.width, height: size.height)
+            .frame(width: size.width, height: size.height, alignment: .topLeading)
+        }
+    }
+
+    // MARK: - hover 吸附提示(ui-style §4.4:accent 20% 描边 + 极轻辉光)
+
+    @ViewBuilder private var objectHint: some View {
+        if let r = viewModel.hoverSnapRegion {
+            RoundedRectangle(cornerRadius: 6, style: .continuous)
+                .strokeBorder(Color.accentColor.opacity(0.2), lineWidth: 1.5)
+                .background(
+                    RoundedRectangle(cornerRadius: 6, style: .continuous)
+                        .fill(Color.accentColor.opacity(0.06))
+                )
+                .shadow(color: Color.accentColor.opacity(0.25), radius: 6)
+                .frame(width: r.width, height: r.height)
+                .offset(x: r.minX, y: r.minY)
+                .animation((reduceMotion || reduceEffects) ? nil : .easeOut(duration: 0.12),
+                           value: r)
         }
     }
 
@@ -141,6 +212,12 @@ struct OverlayRootView: View {
                         viewModel.dragEnded(location: value.location, start: value.startLocation)
                     }
             )
+            .onContinuousHover(coordinateSpace: .named(Self.coordinateSpaceName)) { phase in
+                switch phase {
+                case .active(let p): viewModel.hoverLocation = p
+                case .ended: viewModel.hoverLocation = nil
+                }
+            }
     }
 
     // MARK: - 底部结果面板(hidden 时不拦点击;非 hidden 时其区域手势归面板)
@@ -153,6 +230,43 @@ struct OverlayRootView: View {
         return ResultSheetView(model: sheetModel, reduceEffects: reduceEffects)
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottom)
             .allowsHitTesting(!hidden)
+    }
+}
+
+/// 四角括号(原版裁剪框语汇):每角一条「臂-圆角-臂」的 L 形路径,
+/// 臂长/圆角随选框尺寸自适应(小框不塌)。rect 为括号外接矩形(覆盖层坐标)。
+private struct CornerBracketsShape: Shape {
+    let rect: CGRect
+
+    func path(in _: CGRect) -> Path {
+        let arm = min(26, rect.width / 3.5, rect.height / 3.5)
+        let r = min(12, arm * 0.55)
+        var p = Path()
+        // 左上
+        p.move(to: CGPoint(x: rect.minX, y: rect.minY + arm))
+        p.addLine(to: CGPoint(x: rect.minX, y: rect.minY + r))
+        p.addQuadCurve(to: CGPoint(x: rect.minX + r, y: rect.minY),
+                       control: CGPoint(x: rect.minX, y: rect.minY))
+        p.addLine(to: CGPoint(x: rect.minX + arm, y: rect.minY))
+        // 右上
+        p.move(to: CGPoint(x: rect.maxX - arm, y: rect.minY))
+        p.addLine(to: CGPoint(x: rect.maxX - r, y: rect.minY))
+        p.addQuadCurve(to: CGPoint(x: rect.maxX, y: rect.minY + r),
+                       control: CGPoint(x: rect.maxX, y: rect.minY))
+        p.addLine(to: CGPoint(x: rect.maxX, y: rect.minY + arm))
+        // 右下
+        p.move(to: CGPoint(x: rect.maxX, y: rect.maxY - arm))
+        p.addLine(to: CGPoint(x: rect.maxX, y: rect.maxY - r))
+        p.addQuadCurve(to: CGPoint(x: rect.maxX - r, y: rect.maxY),
+                       control: CGPoint(x: rect.maxX, y: rect.maxY))
+        p.addLine(to: CGPoint(x: rect.maxX - arm, y: rect.maxY))
+        // 左下
+        p.move(to: CGPoint(x: rect.minX + arm, y: rect.maxY))
+        p.addLine(to: CGPoint(x: rect.minX + r, y: rect.maxY))
+        p.addQuadCurve(to: CGPoint(x: rect.minX, y: rect.maxY - r),
+                       control: CGPoint(x: rect.minX, y: rect.maxY))
+        p.addLine(to: CGPoint(x: rect.minX, y: rect.maxY - arm))
+        return p
     }
 }
 
