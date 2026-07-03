@@ -25,6 +25,8 @@ public final class AppCoordinator: ObservableObject {
     private var currentCapture: CaptureResult?
     private var lastTextQuery: String?
     private var lastImageSearchRect: CGRect?
+    /// 整屏提问:等 Lens 会话 URL(vsrid)就绪后要追加的文字(F11 整屏版)。
+    private var pendingLensQuestion: String?
     /// 药丸缩略图:圈出的图的查询上下文(与文字 query 对等),错误卡/重试期间保留。
     private var lastLensThumbnail: CGImage?
     private var lensAttempt = 0
@@ -128,12 +130,19 @@ public final class AppCoordinator: ObservableObject {
         cb.onQuerySubmit = { [weak self] text, pageURL in
             self?.handleQuerySubmit(text, currentPageURL: pageURL)
         }
+        cb.onAskAboutScreen = { [weak self] question in self?.askAboutScreen(question) }
+        cb.onCopyImage = { [weak self] rect in self?.copyImageSelection(overlayRect: rect) }
+        cb.onLensPageURL = { [weak self] url in self?.handleLensPageURL(url) }
         cb.onLensBlocked = { [weak self] reason in self?.handleLensBlocked(reason) }
         cb.onLensFailure = { [weak self] reason in self?.handleLensFailure(reason) }
         cb.onDismiss = { [weak self] in self?.dismissOverlay() }
         overlay.present(capture: result,
                         callbacks: cb,
-                        reduceEffects: settings.reduceEffects)
+                        reduceEffects: settings.reduceEffects,
+                        translationTargetCode: settings.translationTargetCode,
+                        onPickTranslationTarget: { [weak self] code in
+                            self?.settings.translationTargetCode = code
+                        })
 
         // 全量词框在 detached Task 里算(不占主线程,features F3)
         ocrTask?.cancel()
@@ -155,6 +164,7 @@ public final class AppCoordinator: ObservableObject {
         currentCapture = nil
         lastImageSearchRect = nil
         lastLensThumbnail = nil
+        pendingLensQuestion = nil
         overlay.dismiss()
         phase = .idle
         previousApp?.activate()
@@ -168,6 +178,7 @@ public final class AppCoordinator: ObservableObject {
         guard !q.isEmpty else { return }
         lastTextQuery = q
         lastLensThumbnail = nil
+        pendingLensQuestion = nil
         guard let url = search.textSearchURL(query: q, viewport: overlay.viewportSize) else { return }
         overlay.showResult(.web(url), query: q)
     }
@@ -195,6 +206,7 @@ public final class AppCoordinator: ObservableObject {
         guard !px.isNull, px.width >= 4, px.height >= 4,
               let cropped = cap.image.cropping(to: px) else { return }
         lastTextQuery = nil
+        pendingLensQuestion = nil
         lastImageSearchRect = overlayRect
         // 药丸缩略图 = 圈出的图(查询上下文与文字 query 对等)
         lastLensThumbnail = LensService.downscaled(cropped, maxDimension: 240)
@@ -210,6 +222,51 @@ public final class AppCoordinator: ObservableObject {
                 self?.performImageSearch(overlayRect: overlayRect)
             }, login: nil), query: nil, queryImage: lastLensThumbnail)
         }
+    }
+
+    /// 底部工具条「整屏提问」(安卓同款):整张截图发 Lens,结果页(vsrid)就绪后
+    /// 自动以 multisearch 追加提问文字 —— 图+文 AI 问答。
+    private func askAboutScreen(_ question: String) {
+        guard let cap = currentCapture else { return }
+        let q = question.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !q.isEmpty else { return }
+        lastTextQuery = nil
+        lastImageSearchRect = nil
+        pendingLensQuestion = q
+        lastLensThumbnail = LensService.downscaled(cap.image, maxDimension: 240)
+        lensAttempt += 1
+        do {
+            let payload = try search.lensUploadPayload(for: cap.image, attempt: lensAttempt)
+            overlay.showResult(.lensUpload(payload), query: q, queryImage: lastLensThumbnail)
+        } catch {
+            let message = (error as? LocalizedError)?.errorDescription ?? "图像搜索失败,请重试。"
+            overlay.showResult(.error(message: message, retry: { [weak self] in
+                self?.askAboutScreen(q)
+            }, login: nil), query: q, queryImage: lastLensThumbnail)
+        }
+    }
+
+    /// Lens 结果页 URL 就绪:整屏提问的文字此刻才能挂上(vsrid 会话参数在 URL 里)。
+    private func handleLensPageURL(_ url: URL?) {
+        guard let question = pendingLensQuestion,
+              let url,
+              let multisearch = SearchURLBuilder.lensMultisearch(currentResultURL: url, text: question)
+        else { return }
+        pendingLensQuestion = nil
+        lastTextQuery = question
+        overlay.showResult(.web(multisearch), query: question, queryImage: lastLensThumbnail)
+    }
+
+    /// 迷你工具条「复制」(图片选区):按坐标真源裁剪并写入剪贴板。
+    private func copyImageSelection(overlayRect: CGRect) {
+        guard let cap = currentCapture else { return }
+        let px = cap.context.pixelRect(fromOverlay: overlayRect)
+        guard !px.isNull, let cropped = cap.image.cropping(to: px) else { return }
+        let image = NSImage(cgImage: cropped, size: overlayRect.size)
+        let pasteboard = NSPasteboard.general
+        pasteboard.clearContents()
+        pasteboard.writeObjects([image])
+        Haptics.confirm()
     }
 
     /// 面板 WebView 报告被 Google 风控拦截(403):

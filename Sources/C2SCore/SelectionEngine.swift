@@ -29,10 +29,20 @@ public final class SelectionEngine {
     public let words: [OCRWord]
     public let config: Config
 
+    /// 视觉行(翻译原位盖板等按行消费;rect = 行内词框并集,text = 阅读序拼装)。
+    public struct VisualLine: Sendable, Equatable {
+        public let rect: CGRect
+        public let text: String
+    }
+
     /// 全局阅读链(词索引,行序 → 行内 minX 序)。
     private let chain: [Int]
     /// 词 idx → 链上位置。
     private let chainPos: [Int]
+    /// 词 idx → 行号(visualLines 下标)。
+    private let lineOfWord: [Int]
+    /// 全部视觉行(行序)。
+    public let visualLines: [VisualLine]
     /// 区域(block)→ x 范围(参与判定用;block 由 OCR 侧几何聚类,天然不跨栏)。
     private let blockXRange: [Int: ClosedRange<CGFloat>]
     private let grid: SpatialGrid
@@ -74,15 +84,23 @@ public final class SelectionEngine {
 
         var chain: [Int] = []
         var chainPos = Array(repeating: -1, count: words.count)
+        var lineOfWord = Array(repeating: -1, count: words.count)
+        var visualLines: [VisualLine] = []
         for lineWords in lines {
             let line = lineWords.sorted { words[$0].rect.minX < words[$1].rect.minX }
+            let lineIndex = visualLines.count
             for (offset, wi) in line.enumerated() {
                 chainPos[wi] = chain.count + offset
+                lineOfWord[wi] = lineIndex
             }
             chain.append(contentsOf: line)
+            let rect = line.dropFirst().reduce(words[line[0]].rect) { $0.union(words[$1].rect) }
+            visualLines.append(VisualLine(rect: rect, text: Self.text(for: line.map { words[$0] })))
         }
         self.chain = chain
         self.chainPos = chainPos
+        self.lineOfWord = lineOfWord
+        self.visualLines = visualLines
         var blockXRange: [Int: ClosedRange<CGFloat>] = [:]
         for w in words {
             if let r = blockXRange[w.block] {
@@ -218,6 +236,21 @@ public final class SelectionEngine {
             .filter { r.contains(CGPoint(x: words[$0].rect.midX, y: words[$0].rect.midY)) }
             .sorted { chainPos[$0] < chainPos[$1] }
             .map { words[$0] }
+    }
+
+    // MARK: - 选区 → 行片段(选中文字翻译等按行消费)
+
+    /// 把一组选中词按视觉行分组:每行返回「该行内选中片段」的并集框与阅读序文本。
+    public func lineFragments(for selection: [OCRWord]) -> [VisualLine] {
+        var byLine: [Int: [OCRWord]] = [:]
+        for w in selection where w.id >= 0 && w.id < lineOfWord.count {
+            byLine[lineOfWord[w.id], default: []].append(w)
+        }
+        return byLine.sorted { $0.key < $1.key }.map { _, ws in
+            let ordered = ws.sorted { chainPos[$0.id] < chainPos[$1.id] }
+            let rect = ordered.dropFirst().reduce(ordered[0].rect) { $0.union($1.rect) }
+            return VisualLine(rect: rect, text: Self.text(for: ordered))
+        }
     }
 
     // MARK: - 文本拼装

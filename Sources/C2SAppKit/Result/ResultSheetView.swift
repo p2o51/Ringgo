@@ -24,6 +24,12 @@ public final class ResultSheetModel: ObservableObject {
     @Published public var loadToken = 0
     /// 面板右上 × 的动作:与 Esc 同义,退出整个覆盖层(不是只收面板)。
     public var onDismiss: (() -> Void)?
+    /// 自动换边:选区在右半屏 → 面板停靠左侧(false);手动拖过面板后不再自动换。
+    @Published public var dockTrailing: Bool = true
+    /// 本次覆盖层会话内用户是否手动拖动过面板(拖过 → 尊重手动位置)。
+    public var userMovedPanel = false
+    /// 主 frame URL 变化上报(整屏提问要等带 vsrid 的 URL 就绪)。
+    public var onPageURLChanged: ((URL?) -> Void)?
     public init() {}
 }
 
@@ -96,6 +102,9 @@ struct ResultSheetView: View {
                            : (motionReduced ? .easeInOut(duration: 0.15)
                                             : .spring(response: 0.4, dampingFraction: 0.85)),
                            value: isHidden)
+                .animation(motionReduced ? .easeInOut(duration: 0.15)
+                                          : .spring(response: 0.4, dampingFraction: 0.85),
+                           value: model.dockTrailing)
                 .allowsHitTesting(!isHidden) // 隐藏时绝不挡覆盖层手势
                 .disabled(isHidden)          // 并释放键盘焦点,防止盲打进隐形输入框
         }
@@ -130,8 +139,12 @@ struct ResultSheetView: View {
     }
 
     private func currentCenter(in container: CGSize, panel: CGSize) -> CGPoint {
-        panelCenter ?? CGPoint(x: container.width - panel.width / 2 - Self.edgeMargin,
-                               y: container.height / 2)
+        if let panelCenter { return panelCenter }
+        // 默认停靠边由 dockTrailing 决定(自动避开选区一侧)
+        let x = model.dockTrailing
+            ? container.width - panel.width / 2 - Self.edgeMargin
+            : panel.width / 2 + Self.edgeMargin
+        return CGPoint(x: x, y: container.height / 2)
     }
 
     // MARK: - 面板
@@ -190,6 +203,7 @@ struct ResultSheetView: View {
             .onChanged { value in
                 if dragStartCenter == nil {
                     dragStartCenter = currentCenter(in: container, panel: panel)
+                    model.userMovedPanel = true // 手动拖过 → 本次会话不再自动换边
                 }
                 guard let start = dragStartCenter else { return }
                 let clamped = Self.clamped(
@@ -258,7 +272,10 @@ struct ResultSheetView: View {
                                   isLoading: $webLoading,
                                   onBlocked: isLensContent ? { model.onLensBlocked?($0) } : nil,
                                   onFailure: isLensContent ? { model.onLensFailure?($0) } : nil,
-                                  onURLChange: { model.currentPageURL = $0 })
+                                  onURLChange: { url in
+                                      model.currentPageURL = url
+                                      model.onPageURLChanged?(url)
+                                  })
                 }
                 if webLoading {
                     // 加载中骨架盖在 WebView 上,didFinish 后 120ms 淡出无缝换入

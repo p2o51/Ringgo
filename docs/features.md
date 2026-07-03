@@ -26,7 +26,7 @@
 | F7 | 图像/视觉搜索(直传 Lens + 302 + 面板) | 切片C | 定稿(需修 multipart) |
 | F8 | 轻点图片 → 物体吸附 | 切片D | **已回退(2026-07-03 实测:显著性候选在桌面截图上噪声大、吸附随机)** |
 | F9 | 条码/二维码识别 + 原生意图(URL/Wi-Fi/联系人/日历/地图/电话/邮件) | 切片D | 定稿(需补权限串) |
-| F10 | 翻译(选区 + 整屏,后续边滚边译) | 切片D | 待实现(Apple Translation) |
+| F10 | 翻译(选区 + 整屏,后续边滚边译) | 切片D | **首刀已实现(2026-07-03,macOS 15+)** |
 | F11 | Multisearch(选区 + 追加文字提问) | 切片D | 定稿 |
 | F12 | 复制/分享动作 | 切片B | 定稿 |
 | F13 | 设置(触发/外观/搜索/权限) | 切片A/B | 定稿 |
@@ -116,12 +116,15 @@
 - 原生意图:`NSWorkspace` 开 URL、Wi-Fi 复制密码+跳设置、`CNContactStore` 加联系人、`EKEventStore` 加日程、Maps 开位置、tel/sms/mailto。
 - **必须补**:`NSContactsUsageDescription` / `NSCalendarsUsageDescription`(缺了调 `requestAccess` 会**崩**);解析器要处理 Wi-Fi/vCard 的转义、SMS URL 的 `?` 分隔(原项目这些有 bug)。
 
-### F10 · 翻译(待实现)
-- Apple **Translation** 框架(`.translationTask` / `TranslationSession`,本地、免 Key)。
-- 选区翻译 → 面板显原译对照;**整屏翻译**一键;**边滚边译**列后续。
-- 语言:源自动检测,目标默认系统语言、可设置。
+### F10 · 翻译(首刀已实现 2026-07-03;macOS 15+,旧系统按钮禁用)
+- Apple **Translation** 框架(`TranslationSession`,本地、免 Key;`.translationTask` 宿主视图桥接,同目标重译需 `Configuration.invalidate()`)。
+- **整屏翻译**:底部工具条「翻译」点按 = 开关;OCR 视觉行(engine.visualLines)→ Lens 式**原位盖板**(thinMaterial 板 + 自适应字号译文贴回原行);进度胶囊「翻译中 n/N」+ 错误卡重试。
+- **选区翻译**:迷你工具条「翻译」→ 仅选中行片段(engine.lineFragments)原位盖板。
+- **语言 UX**:目标默认 = 上次选择(persisted `c2s.translationTarget`)∨ 系统首选;hover 翻译按钮弹语言菜单(排序 = 用户偏好语言序列 → 常用语言);源语言自动检测。
+- 边滚边译列后续。
 
-### F11 · Multisearch + 可编辑查询(v2,2026-07-03 实现)
+### F11 · Multisearch + 可编辑查询 + 整屏提问(v3,2026-07-03)
+- **整屏提问(底部工具条,安卓同款)**:输入问题(可用系统听写)→ **整张截图**发 Lens(面板内表单上传)→ 结果页 vsrid URL 就绪的瞬间自动以 multisearch 挂上问题 → 图+文 AI 问答;药丸显示整屏缩略图 + 问题。
 - **图+文**:图搜会话中在搜索框输入文字 → 在**当前结果页 URL**(带 vsrid 等会话参数)上追加/替换 `q=<text>`(`SearchURLBuilder.lensMultisearch`),图不被顶掉 —— 与谷歌移动版「添加更多搜索条件」同机制。面板 WebView 经 onURLChange 上报当前页 URL;无 vsrid 时降级为纯文字搜索。
 - **可编辑查询**:面板搜索框 = 唯一查询入口,圈选文字直接进框、可编辑后回车替换查询;轻点**已选中**的词不再新建搜索(在框里改)。
 

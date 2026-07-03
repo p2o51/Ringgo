@@ -28,6 +28,7 @@ public final class SettingsStore: ObservableObject {
         static let doubleShiftEnabled = "c2s.doubleShiftEnabled"
         static let appearance = "c2s.appearance"
         static let reduceEffects = "c2s.reduceEffects"
+        static let translationTarget = "c2s.translationTarget"
     }
 
     @Published public var hotkeyKeyCode: UInt32 = 1 {        // kVK_ANSI_S
@@ -50,6 +51,11 @@ public final class SettingsStore: ObservableObject {
     }
     @Published public var reduceEffects: Bool = false {
         didSet { persist(reduceEffects, forKey: Keys.reduceEffects) }
+    }
+
+    /// 翻译目标语言(BCP-47;空 = 跟随系统首选语言)。F10。
+    @Published public var translationTargetCode: String = "" {
+        didSet { persist(translationTargetCode, forKey: Keys.translationTarget) }
     }
 
     /// 登录时启动(SMAppService)。注册/注销失败会自动拨回开关,
@@ -87,6 +93,9 @@ public final class SettingsStore: ObservableObject {
         }
         if defaults.object(forKey: Keys.reduceEffects) != nil {
             reduceEffects = defaults.bool(forKey: Keys.reduceEffects)
+        }
+        if let code = defaults.string(forKey: Keys.translationTarget) {
+            translationTargetCode = code
         }
         launchAtLogin = SMAppService.mainApp.status == .enabled
         isLoading = false

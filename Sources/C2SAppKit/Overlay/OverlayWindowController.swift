@@ -14,6 +14,18 @@ private final class OverlayHostingView<Content: View>: NSHostingView<Content> {
     override var acceptsFirstResponder: Bool { true }
 }
 
+/// 工具条共享状态(翻译目标语言等,选择后即时反映到底部工具条)。
+@MainActor
+final class OverlayToolbarState: ObservableObject {
+    /// BCP-47;空 = 跟随系统首选语言。
+    @Published var targetCode: String = ""
+    let languages = TranslationLanguageOption.menuOptions()
+    var currentTarget: TranslationLanguageOption {
+        let code = targetCode.isEmpty ? (languages.first?.id ?? "en") : targetCode
+        return TranslationLanguageOption.option(for: code)
+    }
+}
+
 /// 覆盖层窗口控制器(机制 §3):borderless + canBecomeKey 的复用窗口、
 /// `.screenSaver` 层级、盖全屏 App、ESC 取消(local monitor 吃掉事件)。
 @MainActor
@@ -30,6 +42,12 @@ public final class OverlayWindowController {
         public var onLensBlocked: (String) -> Void = { _ in }
         /// 面板 WebView 报告 Lens 导航失败(离线、DNS、TLS 等)。
         public var onLensFailure: (String) -> Void = { _ in }
+        /// 底部工具条:整屏提问(整张截图发 Lens + 配上文字,安卓同款)。
+        public var onAskAboutScreen: (String) -> Void = { _ in }
+        /// 迷你工具条:复制图片选区(coordinator 裁剪并写剪贴板)。
+        public var onCopyImage: (CGRect) -> Void = { _ in }
+        /// 面板页面 URL 变化(整屏提问等待带 vsrid 的结果页就绪)。
+        public var onLensPageURL: (URL?) -> Void = { _ in }
         public var onDismiss: () -> Void = {}
         public init() {}
     }
@@ -49,6 +67,13 @@ public final class OverlayWindowController {
     private var callbacks = Callbacks()
     private var context: DisplayContext?
     private var reduceEffects = false
+    private let toolbarState = OverlayToolbarState()
+    /// TranslationController(macOS 15+;旧系统 nil)。Any 盒装避免类型层面的可用性传染。
+    private var translationBox: Any? = {
+        if #available(macOS 15.0, *) { return TranslationController() }
+        return nil
+    }()
+    private var onPickTranslationTarget: (String) -> Void = { _ in }
 
     /// 当前覆盖层视口点尺寸(= capture.context.pointSize;未展示时 .zero)。
     public var viewportSize: CGSize {
@@ -58,10 +83,17 @@ public final class OverlayWindowController {
     /// 在 capture.context.screenFrame 对应屏幕上展示冻结覆盖层。
     public func present(capture: CaptureResult,
                         callbacks: Callbacks,
-                        reduceEffects: Bool) {
+                        reduceEffects: Bool,
+                        translationTargetCode: String = "",
+                        onPickTranslationTarget: @escaping (String) -> Void = { _ in }) {
         self.callbacks = callbacks
         self.context = capture.context
         self.reduceEffects = reduceEffects
+        self.toolbarState.targetCode = translationTargetCode
+        self.onPickTranslationTarget = onPickTranslationTarget
+        if #available(macOS 15.0, *), let tc = translationBox as? TranslationController {
+            tc.dismiss() // 上一次会话的盖板不得串场
+        }
 
         // 状态复位 + 接线(选择状态机的出口全部指向 coordinator 的回调)
         viewModel.reset()
@@ -80,11 +112,22 @@ public final class OverlayWindowController {
         sheetModel.onLensBlocked = callbacks.onLensBlocked
         sheetModel.onLensFailure = callbacks.onLensFailure
         sheetModel.onDismiss = callbacks.onDismiss
+        sheetModel.onPageURLChanged = callbacks.onLensPageURL
+        sheetModel.userMovedPanel = false
+        sheetModel.dockTrailing = true
 
         let root = OverlayRootView(capture: capture,
                                    viewModel: viewModel,
                                    sheetModel: sheetModel,
-                                   reduceEffects: reduceEffects)
+                                   toolbarState: toolbarState,
+                                   translationBox: translationBox,
+                                   reduceEffects: reduceEffects,
+                                   onAskAboutScreen: callbacks.onAskAboutScreen,
+                                   onCopyImage: callbacks.onCopyImage,
+                                   onPickTranslationTarget: { [weak self] code in
+                                       self?.toolbarState.targetCode = code
+                                       self?.onPickTranslationTarget(code)
+                                   })
         let window = ensureWindow()
         if let hostingView {
             hostingView.rootView = root
@@ -124,6 +167,12 @@ public final class OverlayWindowController {
     /// 驱动结果面板(query/queryImage = 药丸里的查询上下文:文字或图搜缩略图)。
     public func showResult(_ content: ResultContent, query: String?, queryImage: CGImage? = nil) {
         guard isPresenting else { return }
+        // 自动换边:选区在右半屏 → 面板停靠左侧(手动拖过则尊重手动位置)
+        if !sheetModel.userMovedPanel,
+           let bounds = viewModel.selectionBounds,
+           let context {
+            sheetModel.dockTrailing = bounds.midX <= context.pointSize.width / 2
+        }
         sheetModel.loadToken &+= 1 // 同 URL 的新搜索也要强制重新加载
         sheetModel.content = content
         sheetModel.query = query
@@ -139,6 +188,9 @@ public final class OverlayWindowController {
             self.keyMonitor = nil
         }
         NSCursor.pop()
+        if #available(macOS 15.0, *), let tc = translationBox as? TranslationController {
+            tc.dismiss()
+        }
         viewModel.reset()
         sheetModel.content = .hidden
         sheetModel.query = nil

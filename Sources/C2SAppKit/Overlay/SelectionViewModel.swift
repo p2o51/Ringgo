@@ -171,6 +171,46 @@ final class SelectionViewModel: ObservableObject {
         return false
     }
 
+    /// 选区外接框(迷你工具条摆位/面板自动换边用)。
+    var selectionBounds: CGRect? {
+        switch state {
+        case .textSelected(let words, _, _):
+            guard let first = words.first else { return nil }
+            return words.dropFirst().reduce(first.rect) { $0.union($1.rect) }
+        case .rectSelection(let rect):
+            return rect
+        case .none, .brushing:
+            return nil
+        }
+    }
+
+    /// 迷你工具条类型(nil = 不显示;拖拽进行中不显示,防跟手漂移)。
+    var miniToolbarKind: MiniToolbarKind? {
+        guard dragMode == nil else { return nil }
+        switch state {
+        case .textSelected: return .text
+        case .rectSelection: return .image
+        case .none, .brushing: return nil
+        }
+    }
+
+    /// 选中文字的行片段(选区翻译按行盖板)。
+    var selectedLineFragments: [SelectionEngine.VisualLine] {
+        guard case .textSelected(let words, _, _) = state else { return [] }
+        return engine?.lineFragments(for: words) ?? []
+    }
+
+    /// 全部视觉行(全屏翻译)。
+    var allVisualLines: [SelectionEngine.VisualLine] {
+        engine?.visualLines ?? []
+    }
+
+    /// 笔刷进行中(底部工具条隐藏,避免与笔迹抢注意力)。
+    var isBrushing: Bool {
+        if case .brushing = state { return true }
+        return false
+    }
+
     /// 悬停预示(hover affordance,桌面端专属):指到哪个词,就预告「按下去选它」。
     /// 手势进行中不提示;已在选区里的词不提示(点它不会新建搜索,在搜索框编辑)。
     var hoveredWord: OCRWord? {

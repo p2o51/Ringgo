@@ -8,7 +8,13 @@ struct OverlayRootView: View {
     let capture: CaptureResult
     @ObservedObject var viewModel: SelectionViewModel
     @ObservedObject var sheetModel: ResultSheetModel
+    @ObservedObject var toolbarState: OverlayToolbarState
+    /// TranslationController(macOS 15+,Any 盒装;旧系统 nil)。
+    let translationBox: Any?
     let reduceEffects: Bool
+    var onAskAboutScreen: (String) -> Void = { _ in }
+    var onCopyImage: (CGRect) -> Void = { _ in }
+    var onPickTranslationTarget: (String) -> Void = { _ in }
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
@@ -38,6 +44,9 @@ struct OverlayRootView: View {
             rectOverlay(size: size)
                 .allowsHitTesting(false)
             interactionLayer(size: size)
+            translationLayer
+            miniToolbar(size: size)
+            bottomToolbar(size: size)
             sheet
         }
         .frame(width: size.width, height: size.height, alignment: .topLeading)
@@ -235,6 +244,88 @@ struct OverlayRootView: View {
             .offset(x: bracket.minX - 5, y: bracket.minY - 5)
     }
 
+    // MARK: - 全屏翻译层(F10;macOS 15+,含不可见 translationTask 宿主)
+
+    private var translationAvailable: Bool {
+        if #available(macOS 15.0, *) { return true }
+        return false
+    }
+
+    @ViewBuilder private var translationLayer: some View {
+        if #available(macOS 15.0, *),
+           let controller = translationBox as? TranslationController {
+            TranslationLayer(controller: controller,
+                             reduceEffects: reduceEffects || reduceMotion)
+        }
+    }
+
+    // MARK: - 迷你工具条(选区尾部,不压选区;拖拽中由 miniToolbarKind 抑制)
+
+    @ViewBuilder private func miniToolbar(size: CGSize) -> some View {
+        if case .hidden = sheetModel.content {} // 面板显隐不影响迷你条,仅为读依赖
+        if let kind = viewModel.miniToolbarKind, let bounds = viewModel.selectionBounds {
+            let toolbarSize = SelectionMiniToolbar.estimatedSize(for: kind)
+            let origin = SelectionMiniToolbar.placement(selection: bounds, canvas: size, size: toolbarSize)
+            SelectionMiniToolbar(
+                kind: kind,
+                reduceEffects: reduceEffects || reduceMotion,
+                onCopy: { copySelection(kind: kind, bounds: bounds) },
+                onTranslate: kind == .text ? { translateSelection() } : nil)
+                .offset(x: origin.x, y: origin.y)
+                .id("\(kind)-\(Int(bounds.minX))-\(Int(bounds.minY))-\(Int(bounds.width))")
+        }
+    }
+
+    private func copySelection(kind: MiniToolbarKind, bounds: CGRect) {
+        switch kind {
+        case .text:
+            guard let text = viewModel.selectedText else { return }
+            let pasteboard = NSPasteboard.general
+            pasteboard.clearContents()
+            pasteboard.setString(text, forType: .string)
+            Haptics.confirm()
+        case .image:
+            onCopyImage(bounds) // coordinator 裁剪写剪贴板 + 触觉
+        }
+    }
+
+    private func translateSelection() {
+        guard #available(macOS 15.0, *),
+              let controller = translationBox as? TranslationController else { return }
+        let lines = viewModel.selectedLineFragments.map { (rect: $0.rect, text: $0.text) }
+        controller.translate(lines: lines, targetCode: toolbarState.currentTarget.id)
+    }
+
+    // MARK: - 底部工具条(整屏提问 + 翻译入口;笔刷进行中隐藏)
+
+    @ViewBuilder private func bottomToolbar(size: CGSize) -> some View {
+        if !viewModel.isBrushing {
+            BottomToolbar(
+                containerWidth: size.width,
+                languages: toolbarState.languages,
+                currentTarget: toolbarState.currentTarget,
+                translationAvailable: translationAvailable,
+                reduceEffects: reduceEffects || reduceMotion,
+                onSubmitQuestion: onAskAboutScreen,
+                onPickTarget: { onPickTranslationTarget($0.id) },
+                onTranslate: { toggleFullTranslation() },
+                onStartDictation: {
+                    // 系统听写(Edit 菜单「开始听写」同一动作;需焦点在输入框)
+                    NSApp.sendAction(Selector(("startDictation:")), to: nil, from: nil)
+                })
+                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottom)
+                .padding(.bottom, 20)
+                .transition(.opacity.combined(with: .move(edge: .bottom)))
+        }
+    }
+
+    private func toggleFullTranslation() {
+        guard #available(macOS 15.0, *),
+              let controller = translationBox as? TranslationController else { return }
+        let lines = viewModel.allVisualLines.map { (rect: $0.rect, text: $0.text) }
+        controller.toggle(lines: lines, targetCode: toolbarState.currentTarget.id)
+    }
+
     // MARK: - 手势层(可视层全部 allowsHitTesting(false),手势统一从这里进状态机)
 
     private func interactionLayer(size: CGSize) -> some View {
@@ -377,6 +468,23 @@ private struct TeardropHandle: View {
                                         width: headDiameter, height: headDiameter))
             }
             return p
+        }
+    }
+}
+
+
+/// 翻译层容器(单独视图以 @ObservedObject 观察控制器状态)。
+@available(macOS 15.0, *)
+private struct TranslationLayer: View {
+    @ObservedObject var controller: TranslationController
+    let reduceEffects: Bool
+
+    var body: some View {
+        ZStack(alignment: .topLeading) {
+            TranslationHostView(controller: controller)
+            if controller.isActive {
+                TranslationOverlayView(controller: controller, reduceEffects: reduceEffects)
+            }
         }
     }
 }
