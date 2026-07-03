@@ -2,6 +2,63 @@ import AppKit
 import SwiftUI
 import WebKit
 
+/// 右键菜单增强(2026-07-03):右键链接时经 JS 捎回 href,
+/// willOpenMenu 里在「打开链接」后插一项「在默认浏览器中打开」。
+/// 结果面板与详情屏共用。
+final class ContextMenuWebView: WKWebView {
+    var lastContextLink: URL?
+
+    override func willOpenMenu(_ menu: NSMenu, with event: NSEvent) {
+        super.willOpenMenu(menu, with: event)
+        guard lastContextLink != nil else { return } // 右键不在链接上 → 原菜单
+        let item = NSMenuItem(title: "在默认浏览器中打开",
+                              action: #selector(openContextLinkInBrowser(_:)),
+                              keyEquivalent: "")
+        item.target = self
+        // 插在系统「打开链接」之后;找不到就置顶
+        let anchor = menu.items.firstIndex {
+            $0.identifier?.rawValue == "WKMenuItemIdentifierOpenLink"
+        }
+        menu.insertItem(item, at: anchor.map { $0 + 1 } ?? 0)
+    }
+
+    @objc private func openContextLinkInBrowser(_ sender: Any?) {
+        guard let url = lastContextLink else { return }
+        NSWorkspace.shared.open(url)
+    }
+}
+
+/// contextmenu 事件 → 把链接 href 递回原生侧(空串 = 右键不在链接上)。
+enum ContextLinkBridge {
+    static let messageName = "c2sContextLink"
+    static let script = """
+    document.addEventListener('contextmenu', function (event) {
+      var anchor = event.target && event.target.closest ? event.target.closest('a[href]') : null;
+      try {
+        window.webkit.messageHandlers.c2sContextLink.postMessage(anchor ? anchor.href : '');
+      } catch (e) {}
+    }, true);
+    """
+
+    /// 给配置装上桥(脚本进全部 frame;handler 弱持 webView,无环)。
+    static func install(on configuration: WKWebViewConfiguration) -> Handler {
+        configuration.userContentController.addUserScript(WKUserScript(
+            source: script, injectionTime: .atDocumentStart, forMainFrameOnly: false))
+        let handler = Handler()
+        configuration.userContentController.add(handler, name: messageName)
+        return handler
+    }
+
+    final class Handler: NSObject, WKScriptMessageHandler {
+        weak var webView: ContextMenuWebView?
+        func userContentController(_ userContentController: WKUserContentController,
+                                   didReceive message: WKScriptMessage) {
+            let href = message.body as? String ?? ""
+            webView?.lastContextLink = href.isEmpty ? nil : URL(string: href)
+        }
+    }
+}
+
 /// 面板 WebView 的加载源。token 变化 = 强制重新加载:
 /// 去重只为挡住 SwiftUI 重绘风暴,同 query 的「新一次搜索」必须照常加载
 /// (用户可能已在 WebView 里点走,重选同一个词不能静默无效)。
@@ -67,7 +124,10 @@ struct ResultWebView: NSViewRepresentable {
             source: Self.declutterScript,
             injectionTime: .atDocumentEnd,
             forMainFrameOnly: true))
-        let webView = WKWebView(frame: .zero, configuration: config)
+        let contextHandler = ContextLinkBridge.install(on: config)
+        let webView = ContextMenuWebView(frame: .zero, configuration: config)
+        contextHandler.webView = webView
+        context.coordinator.contextHandler = contextHandler
         webView.customUserAgent = Self.safariUserAgent
         webView.navigationDelegate = context.coordinator
         webView.uiDelegate = context.coordinator // target=_blank / window.open 在本视图内打开
@@ -125,6 +185,7 @@ struct ResultWebView: NSViewRepresentable {
         }
         var parent: ResultWebView
         var lastSource: WebSource?
+        var contextHandler: ContextLinkBridge.Handler?
 
         init(_ parent: ResultWebView) { self.parent = parent }
 

@@ -110,7 +110,10 @@ private struct DetailWebView: NSViewRepresentable {
     func makeNSView(context: Context) -> WKWebView {
         let config = WKWebViewConfiguration()
         config.websiteDataStore = .default()
-        let webView = WKWebView(frame: .zero, configuration: config)
+        let contextHandler = ContextLinkBridge.install(on: config)
+        let webView = ContextMenuWebView(frame: .zero, configuration: config)
+        contextHandler.webView = webView
+        context.coordinator.contextHandler = contextHandler
         webView.customUserAgent = Self.mobileUA
         webView.allowsBackForwardNavigationGestures = true
         webView.underPageBackgroundColor = .clear
@@ -138,6 +141,7 @@ private struct DetailWebView: NSViewRepresentable {
 
     final class Coordinator {
         var lastKey: String?
+        var contextHandler: ContextLinkBridge.Handler?
     }
 }
 
