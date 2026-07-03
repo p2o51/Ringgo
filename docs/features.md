@@ -119,7 +119,7 @@
 ### F10 · 翻译(首刀已实现 2026-07-03;macOS 15+,旧系统按钮禁用)
 - Apple **Translation** 框架(`TranslationSession`,本地、免 Key;`.translationTask` 宿主视图桥接,同目标重译需 `Configuration.invalidate()`)。
 - **整屏翻译**:底部工具条「翻译」点按 = 开关;OCR 视觉行(engine.visualLines)→ Lens 式**原位盖板**(thinMaterial 板 + 自适应字号译文贴回原行);进度胶囊「翻译中 n/N」+ 错误卡重试。
-- **选区翻译**:迷你工具条「翻译」→ 仅选中行片段(engine.lineFragments)原位盖板。
+- **选区翻译(v2,2026-07-03 拍板)**:迷你工具条「翻译」= 开关 —— 开:真实查询 = 「将下面的文字翻译成 {目标语言}:{选中文字}」+ **Google AI Mode**(udm=50),药丸显示**原文**(可编辑回车重译)+ 「翻译 · 语言」chip,按钮高亮;再点/任何新搜索 = 退回普通搜索。~~Apple Translation 选区盖板~~ 改为整屏翻译专用。
 - **语言 UX**:目标默认 = 上次选择(persisted `c2s.translationTarget`)∨ 系统首选;hover 翻译按钮弹语言菜单(排序 = 用户偏好语言序列 → 常用语言);源语言自动检测。
 - 边滚边译列后续。
 

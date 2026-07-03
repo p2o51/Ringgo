@@ -5,9 +5,12 @@ import CoreGraphics
 public enum SearchURLBuilder {
 
     /// 文本搜索:`https://www.google.com/search?q=…&gsc=2&cs=1&biw=&bih=`(cs=1 深色)。
-    public static func googleSearch(query: String, viewport: CGSize? = nil, darkMode: Bool = true) -> URL? {
+    /// aiMode = true → 追加 udm=50,直接落在 Google AI Mode(选区翻译等 prompt 型查询用)。
+    public static func googleSearch(query: String, viewport: CGSize? = nil,
+                                    darkMode: Bool = true, aiMode: Bool = false) -> URL? {
         guard var comps = URLComponents(string: "https://www.google.com/search") else { return nil }
         var items = [URLQueryItem(name: "q", value: query), URLQueryItem(name: "gsc", value: "2")]
+        if aiMode { items.append(URLQueryItem(name: "udm", value: "50")) }
         if darkMode { items.append(URLQueryItem(name: "cs", value: "1")) }
         if let v = viewport, v.width > 0, v.height > 0 {
             items.append(URLQueryItem(name: "biw", value: String(Int(v.width))))

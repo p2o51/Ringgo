@@ -24,6 +24,16 @@ final class SearchURLBuilderTests: XCTestCase {
         XCTAssertTrue(s.contains("q=a%26b%3Dc%20%E4%B8%AD%E6%96%87") || s.contains("q=a%26b%3Dc+%E4%B8%AD%E6%96%87"))
     }
 
+    func testGoogleSearchAIMode() throws {
+        let url = try XCTUnwrap(SearchURLBuilder.googleSearch(query: "将下面的文字翻译成日语:hello", aiMode: true))
+        let comps = try XCTUnwrap(URLComponents(url: url, resolvingAgainstBaseURL: false))
+        let items = Dictionary(uniqueKeysWithValues: (comps.queryItems ?? []).map { ($0.name, $0.value) })
+        XCTAssertEqual(items["udm"], "50", "AI Mode 参数")
+        // 普通搜索不得带 udm
+        let plain = try XCTUnwrap(SearchURLBuilder.googleSearch(query: "hello"))
+        XCTAssertFalse(plain.absoluteString.contains("udm="))
+    }
+
     // MARK: - Lens multisearch(图+文,F11 v2)
 
     func testLensMultisearchReplacesQueryOnVsridURL() throws {

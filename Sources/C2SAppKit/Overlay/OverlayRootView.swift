@@ -15,6 +15,7 @@ struct OverlayRootView: View {
     var onAskAboutScreen: (String) -> Void = { _ in }
     var onCopyImage: (CGRect) -> Void = { _ in }
     var onPickTranslationTarget: (String) -> Void = { _ in }
+    var onToggleTranslateSelection: () -> Void = {}
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
@@ -270,20 +271,15 @@ struct OverlayRootView: View {
             let origin = SelectionMiniToolbar.placement(selection: bounds, canvas: size, size: toolbarSize)
             SelectionMiniToolbar(
                 kind: .text,
+                translateActive: sheetModel.translateChipLabel != nil,
                 reduceEffects: reduceEffects || reduceMotion,
                 onCopy: {},
-                onTranslate: { translateSelection() })
+                onTranslate: { onToggleTranslateSelection() })
                 .offset(x: origin.x, y: origin.y)
                 .id("text-\(Int(bounds.minX))-\(Int(bounds.minY))-\(Int(bounds.width))")
         }
     }
 
-    private func translateSelection() {
-        guard #available(macOS 15.0, *),
-              let controller = translationBox as? TranslationController else { return }
-        let lines = viewModel.selectedLineFragments.map { (rect: $0.rect, text: $0.text) }
-        controller.translate(lines: lines, targetCode: toolbarState.currentTarget.id)
-    }
 
     // MARK: - 底部工具条(整屏提问 + 翻译入口;笔刷进行中隐藏)
 

@@ -48,6 +48,8 @@ public final class OverlayWindowController {
         public var onCopyImage: (CGRect) -> Void = { _ in }
         /// 面板页面 URL 变化(整屏提问等待带 vsrid 的结果页就绪)。
         public var onLensPageURL: (URL?) -> Void = { _ in }
+        /// 迷你工具条「翻译」开关(选区翻译 = prompt 包装 + Google AI Mode)。
+        public var onToggleTranslateSelection: () -> Void = {}
         public var onDismiss: () -> Void = {}
         public init() {}
     }
@@ -104,6 +106,7 @@ public final class OverlayWindowController {
         sheetModel.content = .hidden
         sheetModel.query = nil
         sheetModel.queryImage = nil
+        sheetModel.translateChipLabel = nil
         sheetModel.currentPageURL = nil
         sheetModel.onQuerySubmit = { [weak self] text in
             guard let self else { return }
@@ -127,7 +130,8 @@ public final class OverlayWindowController {
                                    onPickTranslationTarget: { [weak self] code in
                                        self?.toolbarState.targetCode = code
                                        self?.onPickTranslationTarget(code)
-                                   })
+                                   },
+                                   onToggleTranslateSelection: callbacks.onToggleTranslateSelection)
         let window = ensureWindow()
         if let hostingView {
             hostingView.rootView = root
@@ -165,7 +169,8 @@ public final class OverlayWindowController {
     }
 
     /// 驱动结果面板(query/queryImage = 药丸里的查询上下文:文字或图搜缩略图)。
-    public func showResult(_ content: ResultContent, query: String?, queryImage: CGImage? = nil) {
+    public func showResult(_ content: ResultContent, query: String?, queryImage: CGImage? = nil,
+                           translateChip: String? = nil) {
         guard isPresenting else { return }
         // 自动换边:选区在右半屏 → 面板停靠左侧(手动拖过则尊重手动位置)
         if !sheetModel.userMovedPanel,
@@ -177,6 +182,7 @@ public final class OverlayWindowController {
         sheetModel.content = content
         sheetModel.query = query
         sheetModel.queryImage = queryImage
+        sheetModel.translateChipLabel = translateChip // 默认 nil:任何新搜索都退出翻译模式
     }
 
     /// 关闭覆盖层。幂等;内部不得再回调 onDismiss(防递归)。

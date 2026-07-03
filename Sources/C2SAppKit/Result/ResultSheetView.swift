@@ -30,6 +30,9 @@ public final class ResultSheetModel: ObservableObject {
     public var userMovedPanel = false
     /// 主 frame URL 变化上报(整屏提问要等带 vsrid 的 URL 就绪)。
     public var onPageURLChanged: ((URL?) -> Void)?
+    /// 选区翻译模式 chip(nil = 非翻译模式):药丸里显示「翻译 · 目标语言」,
+    /// 真实查询是 prompt 包装 + AI Mode,药丸文本仍是原文(可编辑重译)。
+    @Published public var translateChipLabel: String?
     public init() {}
 }
 
@@ -223,6 +226,20 @@ struct ResultSheetView: View {
             Image(systemName: "magnifyingglass")
                 .font(.system(size: 14, weight: .medium))
                 .foregroundStyle(.secondary)
+            if let chip = model.translateChipLabel {
+                // 翻译模式 chip(2026-07-03):真实查询是 prompt+AI Mode,这里标示模式
+                HStack(spacing: 4) {
+                    Image(systemName: "translate")
+                        .font(.system(size: 10, weight: .semibold))
+                    Text(chip)
+                        .font(.system(size: 11, weight: .medium))
+                }
+                .padding(.horizontal, 8)
+                .padding(.vertical, 4)
+                .foregroundStyle(Color.white)
+                .background(Capsule().fill(Color.accentColor))
+                .fixedSize()
+            }
             if let thumb = model.queryImage {
                 // 图搜查询上下文:圈出的图的缩略图(与文字 query 对等)
                 Image(decorative: thumb, scale: 1)

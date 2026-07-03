@@ -9,6 +9,8 @@ import SwiftUI
 /// 触觉(Haptics.confirm)由调用方在回调里做,组件只回调。
 struct SelectionMiniToolbar: View {
     let kind: MiniToolbarKind
+    /// 选区翻译模式进行中 → 「翻译」按钮高亮(再点退出,面板回普通搜索)。
+    var translateActive: Bool = false
     let reduceEffects: Bool
     var onCopy: () -> Void
     /// nil 或 kind == .image 时不显示翻译按钮。
@@ -41,7 +43,8 @@ struct SelectionMiniToolbar: View {
         // v2(2026-07-03):复制按钮移除(⌘C 直接复制文字/图片),只剩翻译
         HStack(spacing: 0) {
             if kind == .text, let onTranslate {
-                toolbarButton(icon: "translate", title: "翻译", action: onTranslate)
+                toolbarButton(icon: "translate", title: "翻译",
+                              action: onTranslate, highlighted: translateActive)
             }
         }
         .padding(.horizontal, Metrics.paddingH)
@@ -68,7 +71,8 @@ struct SelectionMiniToolbar: View {
 
     /// 按钮 = SF 图标 + 小字,plain 风格,中性前景色(不着 accent,克制)。
     private func toolbarButton(icon: String, title: String,
-                               action: @escaping () -> Void) -> some View {
+                               action: @escaping () -> Void,
+                               highlighted: Bool = false) -> some View {
         Button(action: action) {
             HStack(spacing: Metrics.iconTextSpacing) {
                 Image(systemName: icon)
@@ -76,13 +80,14 @@ struct SelectionMiniToolbar: View {
                 Text(title)
                     .font(.system(size: Metrics.fontSize, weight: .medium))
             }
-            .foregroundStyle(.primary)
+            .foregroundStyle(highlighted ? AnyShapeStyle(Color.white) : AnyShapeStyle(.primary))
             .padding(.horizontal, Metrics.buttonPaddingH)
             .frame(maxHeight: .infinity)
+            .background(highlighted ? Color.accentColor : Color.clear, in: Capsule())
             .contentShape(Rectangle()) // 整个按钮区域可点,不只文字
         }
         .buttonStyle(.plain)
-        .accessibilityLabel(title)
+        .accessibilityLabel(highlighted ? "\(title)(进行中,点按退出)" : title)
     }
 
     /// 按钮之间的 hairline 竖分隔线(留出上下空隙,不顶到胶囊边)。

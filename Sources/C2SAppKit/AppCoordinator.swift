@@ -27,6 +27,8 @@ public final class AppCoordinator: ObservableObject {
     private var lastImageSearchRect: CGRect?
     /// 整屏提问:等 Lens 会话 URL(vsrid)就绪后要追加的文字(F11 整屏版)。
     private var pendingLensQuestion: String?
+    /// 选区翻译模式(2026-07-03:prompt 包装 + Google AI Mode,mini 工具条「翻译」开关)。
+    private var selectionTranslateActive = false
     /// 药丸缩略图:圈出的图的查询上下文(与文字 query 对等),错误卡/重试期间保留。
     private var lastLensThumbnail: CGImage?
     private var lensAttempt = 0
@@ -133,6 +135,7 @@ public final class AppCoordinator: ObservableObject {
         cb.onAskAboutScreen = { [weak self] question in self?.askAboutScreen(question) }
         cb.onCopyImage = { [weak self] rect in self?.copyImageSelection(overlayRect: rect) }
         cb.onLensPageURL = { [weak self] url in self?.handleLensPageURL(url) }
+        cb.onToggleTranslateSelection = { [weak self] in self?.toggleSelectionTranslation() }
         cb.onLensBlocked = { [weak self] reason in self?.handleLensBlocked(reason) }
         cb.onLensFailure = { [weak self] reason in self?.handleLensFailure(reason) }
         cb.onDismiss = { [weak self] in self?.dismissOverlay() }
@@ -165,6 +168,7 @@ public final class AppCoordinator: ObservableObject {
         lastImageSearchRect = nil
         lastLensThumbnail = nil
         pendingLensQuestion = nil
+        selectionTranslateActive = false
         overlay.dismiss()
         phase = .idle
         previousApp?.activate()
@@ -179,8 +183,39 @@ public final class AppCoordinator: ObservableObject {
         lastTextQuery = q
         lastLensThumbnail = nil
         pendingLensQuestion = nil
+        selectionTranslateActive = false // 普通搜索 = 退出翻译模式
         guard let url = search.textSearchURL(query: q, viewport: overlay.viewportSize) else { return }
         overlay.showResult(.web(url), query: q)
+    }
+
+    /// 迷你工具条「翻译」开关(2026-07-03 用户拍板):
+    /// 开 = 真实查询变为「将下面的文字翻译成 {目标语言}:{选中文字}」+ Google AI Mode;
+    /// 药丸显示原文(可编辑重译)+ 模式 chip;按钮高亮。再点 = 退回普通搜索。
+    private func toggleSelectionTranslation() {
+        guard let text = lastTextQuery, !text.isEmpty else { return }
+        if selectionTranslateActive {
+            performTextSearch(text) // 内部清 chip、清模式
+            return
+        }
+        performSelectionTranslation(of: text)
+    }
+
+    private func performSelectionTranslation(of text: String) {
+        let targetName = currentTranslationTargetName()
+        let prompt = "将下面的文字翻译成\(targetName):\n\n\(text)"
+        guard let url = SearchURLBuilder.googleSearch(query: prompt,
+                                                      viewport: overlay.viewportSize,
+                                                      aiMode: true) else { return }
+        selectionTranslateActive = true
+        lastTextQuery = text // 药丸保持原文,可编辑后重译
+        overlay.showResult(.web(url), query: text, translateChip: "翻译 · \(targetName)")
+    }
+
+    private func currentTranslationTargetName() -> String {
+        let code = settings.translationTargetCode.isEmpty
+            ? (TranslationLanguageOption.menuOptions().first?.id ?? "en")
+            : settings.translationTargetCode
+        return TranslationLanguageOption.option(for: code).displayName
     }
 
     /// F11 搜索框提交路由:
@@ -190,6 +225,11 @@ public final class AppCoordinator: ObservableObject {
     private func handleQuerySubmit(_ text: String, currentPageURL: URL?) {
         let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else { return }
+        if selectionTranslateActive {
+            // 翻译模式:编辑药丸原文后回车 = 重译新文本(模式保持)
+            performSelectionTranslation(of: trimmed)
+            return
+        }
         if lastLensThumbnail != nil,
            let base = currentPageURL,
            let multisearch = SearchURLBuilder.lensMultisearch(currentResultURL: base, text: trimmed) {
@@ -207,6 +247,7 @@ public final class AppCoordinator: ObservableObject {
               let cropped = cap.image.cropping(to: px) else { return }
         lastTextQuery = nil
         pendingLensQuestion = nil
+        selectionTranslateActive = false
         lastImageSearchRect = overlayRect
         // 药丸缩略图 = 圈出的图(查询上下文与文字 query 对等)
         lastLensThumbnail = LensService.downscaled(cropped, maxDimension: 240)
