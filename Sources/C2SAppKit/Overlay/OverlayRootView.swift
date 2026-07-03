@@ -45,6 +45,7 @@ struct OverlayRootView: View {
                 .allowsHitTesting(false)
             interactionLayer(size: size)
             translationLayer
+                .frame(width: size.width, height: size.height, alignment: .topLeading)
             miniToolbar(size: size)
             bottomToolbar(size: size)
             sheet

@@ -1,6 +1,9 @@
 import AppKit
 import SwiftUI
 import Translation
+import os
+
+let translationLog = Logger(subsystem: "dev.c2s.C2S", category: "translation")
 
 // MARK: - 纯数据类型(不 gate,低版本代码可引用)
 
@@ -43,6 +46,7 @@ final class TranslationController: ObservableObject {
 
     /// 全屏翻译开关:idle→启动翻译;非 idle→dismiss(同一按钮开↔关)。
     func toggle(lines: [(rect: CGRect, text: String)], targetCode: String) {
+        translationLog.info("toggle: state=\(String(describing: self.state)) lines=\(lines.count) target=\(targetCode)")
         if state == .idle {
             translate(lines: lines, targetCode: targetCode)
         } else {
@@ -65,6 +69,7 @@ final class TranslationController: ObservableObject {
             return
         }
         state = .preparing
+        translationLog.info("translate: usable=\(usable.count) target=\(targetCode)")
 
         let target = Locale.Language(identifier: targetCode)
         if var config = sessionConfiguration, config.target == target {
@@ -94,6 +99,7 @@ final class TranslationController: ObservableObject {
 
     /// session 只在 translationTask 闭包存活期内有效,不得存储。
     func run(session: TranslationSession) async {
+        translationLog.info("run: translationTask fired, pending=\(self.pendingLines.count)")
         let gen = generation
         let lines = pendingLines
         guard !lines.isEmpty else { return }
@@ -101,6 +107,7 @@ final class TranslationController: ObservableObject {
         do {
             // 若目标语言模型未下载,这里会触发系统下载 UI
             try await session.prepareTranslation()
+            translationLog.info("run: prepareTranslation ok")
             guard generation == gen else { return }
 
             let requests = lines.enumerated().map { index, line in
@@ -142,6 +149,7 @@ final class TranslationController: ObservableObject {
             // 任务被更新的配置或 dismiss 取代:非错误,状态由接替方负责
             return
         } catch {
+            translationLog.error("run: failed \(error.localizedDescription)")
             guard generation == gen else { return }
             state = .failed(error.localizedDescription)
         }
@@ -167,8 +175,10 @@ struct TranslationHostView: View {
     @ObservedObject var controller: TranslationController
 
     var body: some View {
+        // 1×1 而非 0×0:零尺寸视图上的 task 修饰器可能不被 SwiftUI 安装
         Color.clear
-            .frame(width: 0, height: 0)
+            .frame(width: 1, height: 1)
+            .allowsHitTesting(false)
             .translationTask(controller.sessionConfiguration) { session in
                 await controller.run(session: session)
             }

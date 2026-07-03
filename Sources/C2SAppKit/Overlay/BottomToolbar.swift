@@ -28,10 +28,24 @@ struct BottomToolbar: View {
     }
 
     var body: some View {
-        HStack(alignment: .center, spacing: 14) {
-            searchPill
-            translateButton
+        // 菜单挂在工具条整体的右上方(ZStack 底对齐 + 底部内边距把它顶上去);
+        // alignmentGuide 方案在 transition 下会失效朝下开,弃用。
+        ZStack(alignment: .bottomTrailing) {
+            HStack(alignment: .center, spacing: 14) {
+                searchPill
+                translateButton
+            }
+            if menuVisible {
+                languageMenu
+                    .padding(.bottom, Self.barHeight + 8)
+                    .transition(reduceEffects
+                                ? .opacity
+                                : .opacity.combined(with: .scale(scale: 0.96, anchor: .bottom)))
+            }
         }
+        .animation(reduceEffects ? .easeInOut(duration: 0.15)
+                                 : .spring(response: 0.28, dampingFraction: 0.82),
+                   value: menuVisible)
         .onAppear {
             // 呼出即聚焦(异步一拍等覆盖层窗口成 key)
             DispatchQueue.main.async { fieldFocused = true }
@@ -94,19 +108,6 @@ struct BottomToolbar: View {
               : "需要 macOS 15 或更高版本")
         .accessibilityLabel("翻译整屏为\(currentTarget.displayName)")
         .onHover(perform: hoverChanged)
-        .overlay(alignment: .top) {
-            if menuVisible {
-                languageMenu
-                    // 菜单底边挂在圆钮顶边上方 8pt
-                    .alignmentGuide(.top) { d in d[.bottom] + 8 }
-                    .transition(reduceEffects
-                                ? .opacity
-                                : .opacity.combined(with: .scale(scale: 0.96, anchor: .bottom)))
-            }
-        }
-        .animation(reduceEffects ? .easeInOut(duration: 0.15)
-                                 : .spring(response: 0.28, dampingFraction: 0.82),
-                   value: menuVisible)
     }
 
     // MARK: - 语言菜单(hover 弹出)
