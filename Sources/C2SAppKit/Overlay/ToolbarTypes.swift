@@ -46,6 +46,65 @@ struct TranslationLanguageOption: Identifiable, Equatable {
     }
 }
 
+/// 两段式「在默认浏览器打开」按钮(2026-07-03 用户拍板):
+/// 点一下 → accent 药丸「确认打开」(2.5s 未确认自动还原);再点 → 打开浏览器
+/// 并退出覆盖层(否则浏览器在全屏覆盖层背后打开,毫无动静,非常怪)。
+struct ConfirmOpenButton: View {
+    /// 点击时求值,保证拿到的是当前页面(而非按钮创建时的旧 URL)。
+    let urlProvider: () -> URL?
+    /// 非 nil = 禁用 + 悬停说明(如 Lens 会话绑定)。
+    var disabledReason: String?
+    /// 打开成功后调用(退出覆盖层)。
+    var onOpened: () -> Void
+
+    @State private var armed = false
+    @State private var disarmTask: Task<Void, Never>?
+
+    var body: some View {
+        Button(action: tap) {
+            if armed {
+                Text("确认打开")
+                    .font(.system(size: 11, weight: .medium))
+                    .foregroundStyle(Color.white)
+                    .padding(.horizontal, 9)
+                    .padding(.vertical, 4)
+                    .background(Capsule().fill(Color.accentColor))
+                    .fixedSize()
+            } else {
+                Image(systemName: "arrow.up.forward.app")
+                    .font(.system(size: 13, weight: .medium))
+                    .foregroundStyle(.secondary)
+            }
+        }
+        .buttonStyle(.plain)
+        .disabled(disabledReason != nil)
+        .opacity(disabledReason != nil ? 0.3 : 1)
+        .help(disabledReason ?? (armed ? "再点一次:打开并退出圈选" : "在默认浏览器中打开"))
+        .accessibilityLabel(armed ? "确认在浏览器中打开" : "在浏览器中打开")
+        .animation(.easeOut(duration: 0.12), value: armed)
+        .onDisappear { disarmTask?.cancel() }
+    }
+
+    private func tap() {
+        if armed {
+            disarmTask?.cancel()
+            armed = false
+            guard let url = urlProvider() else { return }
+            NSWorkspace.shared.open(url)
+            Haptics.confirm()
+            onOpened()
+        } else {
+            armed = true
+            disarmTask?.cancel()
+            disarmTask = Task { @MainActor in
+                try? await Task.sleep(nanoseconds: 2_500_000_000)
+                guard !Task.isCancelled else { return }
+                armed = false
+            }
+        }
+    }
+}
+
 /// Liquid Glass 背板(macOS 26+;旧系统薄材质)。工具条族共用。
 extension View {
     @ViewBuilder

@@ -7,6 +7,8 @@ import WebKit
 /// 结果面板与详情屏共用。
 final class ContextMenuWebView: WKWebView {
     var lastContextLink: URL?
+    /// 经右键菜单打开浏览器后的回调(调用方决定是否退出覆盖层)。
+    var onDidOpenInBrowser: (() -> Void)?
 
     override func willOpenMenu(_ menu: NSMenu, with event: NSEvent) {
         super.willOpenMenu(menu, with: event)
@@ -25,6 +27,7 @@ final class ContextMenuWebView: WKWebView {
     @objc private func openContextLinkInBrowser(_ sender: Any?) {
         guard let url = lastContextLink else { return }
         NSWorkspace.shared.open(url)
+        onDidOpenInBrowser?() // 退出覆盖层,浏览器就在眼前
     }
 }
 
@@ -86,6 +89,8 @@ struct ResultWebView: NSViewRepresentable {
     /// 离开 Google 域的主框架导航(点结果链接/重定向落地/target=_blank)→ 交给详情屏。
     /// 结果面板永远停在 Google 上下文,外部页面在旁边的详情屏打开(2026-07-03 双联屏)。
     var onOpenDetail: ((URL) -> Void)?
+    /// 右键菜单「在默认浏览器中打开」执行后(二级菜单已是确认,直接退出覆盖层)。
+    var onOpenedInBrowser: (() -> Void)?
 
     /// iPhone Safari UA:面板是手机比例(390pt),必须要 Google 的**移动版**布局;
     /// 桌面 UA 会按桌面宽度渲染导致横向裁切。上传与结果同一 UA(会话一致)。
@@ -140,6 +145,7 @@ struct ResultWebView: NSViewRepresentable {
     func updateNSView(_ webView: WKWebView, context: Context) {
         context.coordinator.parent = self // 每次更新刷新 binding/闭包
         // SwiftUI 重绘(拖拽面板等)会反复进这里:源未变绝不重复加载(防重载循环)
+        (webView as? ContextMenuWebView)?.onDidOpenInBrowser = onOpenedInBrowser
         guard context.coordinator.lastSource != source else { return }
         context.coordinator.lastSource = source
         switch source {

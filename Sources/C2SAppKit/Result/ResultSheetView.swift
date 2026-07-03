@@ -125,7 +125,8 @@ struct ResultSheetView: View {
                             token: model.detailToken,
                             size: panelSize,
                             reduceEffects: reduceEffects,
-                            onClose: { model.detailURL = nil })
+                            onClose: { model.detailURL = nil },
+                            onDismissOverlay: { model.onDismiss?() })
                     .position(detailCenter)
                     .transition(motionReduced
                                 ? .opacity
@@ -207,23 +208,13 @@ struct ResultSheetView: View {
                 .fill(Color.secondary.opacity(0.4))
                 .frame(width: 36, height: 5)
             HStack {
-                Button {
-                    if let url = model.currentPageURL {
-                        NSWorkspace.shared.open(url)
-                    }
-                } label: {
-                    Image(systemName: "arrow.up.forward.app")
-                        .font(.system(size: 13, weight: .medium))
-                        .foregroundStyle(.secondary)
-                }
-                .buttonStyle(.plain)
-                .padding(.leading, 10)
-                .disabled(isLensContent || model.currentPageURL == nil)
-                .opacity(isLensContent ? 0.3 : 1)
-                .help(isLensContent
-                      ? "Lens 结果与本面板会话绑定,外部浏览器打开会失效"
-                      : "在默认浏览器中打开")
-                .accessibilityLabel("在浏览器中打开")
+                ConfirmOpenButton(
+                    urlProvider: { model.currentPageURL },
+                    disabledReason: isLensContent
+                        ? "Lens 结果与本面板会话绑定,外部浏览器打开会失效"
+                        : (model.currentPageURL == nil ? "页面尚未加载" : nil),
+                    onOpened: { model.onDismiss?() }) // 打开即退出覆盖层,浏览器就在眼前
+                    .padding(.leading, 10)
                 Spacer()
                 Button {
                     // 与 Esc 同义:退出整个覆盖层,不是只收面板(2026-07-03 用户拍板)
@@ -343,7 +334,8 @@ struct ResultSheetView: View {
                                   onOpenDetail: { url in
                                       model.detailToken += 1
                                       model.detailURL = url
-                                  })
+                                  },
+                                  onOpenedInBrowser: { model.onDismiss?() })
                 }
                 if webLoading {
                     // 加载中骨架盖在 WebView 上,didFinish 后 120ms 淡出无缝换入

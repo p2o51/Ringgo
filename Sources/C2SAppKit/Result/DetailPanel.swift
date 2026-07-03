@@ -26,6 +26,8 @@ struct DetailPanel: View {
     let size: CGSize
     let reduceEffects: Bool
     var onClose: () -> Void
+    /// ↗ 确认打开 / 右键浏览器打开后:退出整个覆盖层。
+    var onDismissOverlay: () -> Void = {}
 
     @StateObject private var model = DetailPanelModel()
 
@@ -33,7 +35,8 @@ struct DetailPanel: View {
         let shape = RoundedRectangle(cornerRadius: 20, style: .continuous)
         VStack(spacing: 0) {
             navBar
-            DetailWebView(initialURL: url, token: token, model: model)
+            DetailWebView(initialURL: url, token: token, model: model,
+                          onOpenedInBrowser: onDismissOverlay)
         }
         .frame(width: size.width, height: size.height)
         .panelGlassDetail(in: shape)
@@ -70,17 +73,9 @@ struct DetailPanel: View {
 
             Spacer(minLength: 0)
 
-            Button {
-                if let current = model.currentURL ?? Optional(url) {
-                    NSWorkspace.shared.open(current)
-                }
-            } label: {
-                Image(systemName: "arrow.up.forward.app")
-                    .font(.system(size: 13, weight: .semibold))
-            }
-            .buttonStyle(.plain)
-            .help("在默认浏览器中打开")
-            .accessibilityLabel("在浏览器中打开")
+            ConfirmOpenButton(
+                urlProvider: { model.currentURL ?? url },
+                onOpened: onDismissOverlay)
 
             Button(action: onClose) {
                 Image(systemName: "xmark.circle.fill")
@@ -101,6 +96,7 @@ private struct DetailWebView: NSViewRepresentable {
     let initialURL: URL
     let token: Int
     @ObservedObject var model: DetailPanelModel
+    var onOpenedInBrowser: () -> Void = {}
 
     private static let mobileUA =
         "Mozilla/5.0 (iPhone; CPU iPhone OS 17_5 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.5 Mobile/15E148 Safari/604.1"
@@ -133,6 +129,7 @@ private struct DetailWebView: NSViewRepresentable {
     }
 
     func updateNSView(_ webView: WKWebView, context: Context) {
+        (webView as? ContextMenuWebView)?.onDidOpenInBrowser = onOpenedInBrowser
         let key = "\(token)|\(initialURL.absoluteString)"
         guard context.coordinator.lastKey != key else { return }
         context.coordinator.lastKey = key
