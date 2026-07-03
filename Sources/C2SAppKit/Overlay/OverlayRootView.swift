@@ -35,8 +35,6 @@ struct OverlayRootView: View {
                 .allowsHitTesting(false)
             rectOverlay(size: size)
                 .allowsHitTesting(false)
-            objectHint
-                .allowsHitTesting(false)
             interactionLayer(size: size)
             sheet
         }
@@ -179,24 +177,6 @@ struct OverlayRootView: View {
         }
     }
 
-    // MARK: - hover 吸附提示(ui-style §4.4:accent 20% 描边 + 极轻辉光)
-
-    @ViewBuilder private var objectHint: some View {
-        if let r = viewModel.hoverSnapRegion {
-            RoundedRectangle(cornerRadius: 6, style: .continuous)
-                .strokeBorder(Color.accentColor.opacity(0.2), lineWidth: 1.5)
-                .background(
-                    RoundedRectangle(cornerRadius: 6, style: .continuous)
-                        .fill(Color.accentColor.opacity(0.06))
-                )
-                .shadow(color: Color.accentColor.opacity(0.25), radius: 6)
-                .frame(width: r.width, height: r.height)
-                .offset(x: r.minX, y: r.minY)
-                .animation((reduceMotion || reduceEffects) ? nil : .easeOut(duration: 0.12),
-                           value: r)
-        }
-    }
-
     // MARK: - 手势层(可视层全部 allowsHitTesting(false),手势统一从这里进状态机)
 
     private func interactionLayer(size: CGSize) -> some View {
@@ -212,12 +192,6 @@ struct OverlayRootView: View {
                         viewModel.dragEnded(location: value.location, start: value.startLocation)
                     }
             )
-            .onContinuousHover(coordinateSpace: .named(Self.coordinateSpaceName)) { phase in
-                switch phase {
-                case .active(let p): viewModel.hoverLocation = p
-                case .ended: viewModel.hoverLocation = nil
-                }
-            }
     }
 
     // MARK: - 底部结果面板(hidden 时不拦点击;非 hidden 时其区域手势归面板)

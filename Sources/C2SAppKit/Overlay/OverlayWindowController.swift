@@ -121,12 +121,6 @@ public final class OverlayWindowController {
         viewModel.updateWords(words)
     }
 
-    /// F8:物体/矩形检测候选到达(主线程调用,与 OCR 各自独立)。
-    public func updateObjectRegions(_ regions: [CGRect]) {
-        guard isPresenting else { return }
-        viewModel.updateObjectRegions(regions)
-    }
-
     /// 驱动结果面板(query/queryImage = 药丸里的查询上下文:文字或图搜缩略图)。
     public func showResult(_ content: ResultContent, query: String?, queryImage: CGImage? = nil) {
         guard isPresenting else { return }

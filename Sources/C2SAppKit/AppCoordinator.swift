@@ -15,13 +15,11 @@ public final class AppCoordinator: ObservableObject {
     public let capture = CaptureService()
     private let hotkeys = HotkeyManager()
     private let ocr = OCRService()
-    private let objectDetection = ObjectDetectionService()
     private let search = SearchService()
     private let overlay = OverlayWindowController()
 
     private var previousApp: NSRunningApplication?
     private var ocrTask: Task<Void, Never>?
-    private var objectTask: Task<Void, Never>?
     private var speculativeCapture: Task<CaptureResult, Error>?
     private var settingsSink: AnyCancellable?
     private var currentCapture: CaptureResult?
@@ -86,6 +84,7 @@ public final class AppCoordinator: ObservableObject {
                 return try await capture.captureScreenUnderMouse()
             }
         case .chargeFired:
+            Haptics.fire() // 蓄力跨过阈值(触控板)
             beginCapture()
         case .chargeCancelled:
             speculativeCapture?.cancel()
@@ -147,23 +146,12 @@ public final class AppCoordinator: ObservableObject {
             guard !Task.isCancelled else { return }
             await MainActor.run { overlay.updateWords(words) }
         }
-
-        // F8:物体/矩形候选与 OCR 并发预跑(轻点吸附 + hover 提示)
-        objectTask?.cancel()
-        let detection = self.objectDetection
-        objectTask = Task.detached(priority: .userInitiated) {
-            let regions = await detection.regions(in: image, context: context)
-            guard !Task.isCancelled else { return }
-            await MainActor.run { overlay.updateObjectRegions(regions) }
-        }
     }
 
     private func dismissOverlay() {
         guard phase == .overlayActive else { return }
         ocrTask?.cancel()
         ocrTask = nil
-        objectTask?.cancel()
-        objectTask = nil
         currentCapture = nil
         lastImageSearchRect = nil
         lastLensThumbnail = nil

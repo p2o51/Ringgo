@@ -31,10 +31,15 @@ constant float2 kC2SPhase[4] = {
     float2(0.0, 1.7), float2(2.1, 0.4), float2(4.2, 2.6), float2(1.0, 3.9),
 };
 
-/// 单个色点的慢速 Lissajous 游走(返回 uv 空间位置)。
+/// 单个色点的 Lissajous 游走 + 高频微抖("android wiggle",机制 §8;返回 uv 空间位置)。
+/// 微抖让慢速大轨道之上始终有肉眼可感的生命感(2026-07-03 实机反馈:纯慢轨道看着像静止)。
 static inline float2 c2s_lissajous(float t, int i) {
-    return kC2SCenter[i] + kC2SRadius[i] * float2(sin(t * kC2SFreq[i].x + kC2SPhase[i].x),
-                                                  cos(t * kC2SFreq[i].y + kC2SPhase[i].y));
+    const float2 base = kC2SCenter[i] + kC2SRadius[i] * float2(sin(t * kC2SFreq[i].x + kC2SPhase[i].x),
+                                                               cos(t * kC2SFreq[i].y + kC2SPhase[i].y));
+    const float fi = float(i);
+    const float2 wiggle = 0.028f * float2(sin(t * 1.9f + fi * 2.1f) + 0.5f * sin(t * 3.1f + fi),
+                                          cos(t * 2.3f + fi * 1.3f) + 0.5f * cos(t * 2.9f + fi * 0.7f));
+    return base + wiggle;
 }
 
 /// colorEffect:AE "4-Color Gradient" —— 4 个色点慢速游走,逐像素按距离高斯加权混色。
@@ -51,7 +56,7 @@ static inline float2 c2s_lissajous(float t, int i) {
         return half4(0.0h);
     }
 
-    const float t = time * 0.8f; // 速度系数 ≈0.8(慢速游走)
+    const float t = time * 1.7f; // 速度系数(2026-07-03 实机调校:0.8 观感近似静止)
     const float ta = clamp(trackingAmount, 0.0f, 1.0f);
 
     // 除以 min(size) 归一化(保纵横比):q 空间下 spread 即「×min(size)」的比例
@@ -59,16 +64,22 @@ static inline float2 c2s_lissajous(float t, int i) {
     const float2 q = position / minDim;
     const float2 tipQ = tipPoint / minDim;
 
-    // spread ≈ 0.12×min(size) 起步,tracking 收窄到 ~0.05
-    const float spread = mix(0.12f, 0.05f, ta);
+    // spread ≈ 0.12×min(size) 起步,tracking 收窄到 ~0.06
+    const float spread = mix(0.12f, 0.06f, ta);
     const float inv2s2 = 1.0f / (2.0f * spread * spread);
 
-    // 逐点高斯加权(权重在 float 域计算,防 half 下溢)
+    // 逐点高斯加权(权重在 float 域计算,防 half 下溢)。
+    // tracking 收敛目标不是笔尖「一个点」——四点重合会把四色平均成一团浑浊的
+    // 均匀色(2026-07-03 实机反馈"光球没有渐变")——而是笔尖周围的小半径公转
+    // 轨道(相位差 90°,持续旋转),光球内部保有流动的四色渐变。
+    const float orbitR = 0.045f;
     float wSum = 0.0f;
     float3 mixRGB = float3(0.0f);
     for (int i = 0; i < 4; ++i) {
         float2 pq = c2s_lissajous(t, i) * size / minDim; // uv → q 空间
-        pq = mix(pq, tipQ, ta);                          // tracking:向笔尖收敛
+        const float ang = t * 2.6f + float(i) * 1.5708f; // 四点均布,绕笔尖公转
+        const float2 orbit = tipQ + orbitR * float2(sin(ang), cos(ang));
+        pq = mix(pq, orbit, ta);
         const float2 d = q - pq;
         const float w = exp(-dot(d, d) * inv2s2);
         wSum += w;
