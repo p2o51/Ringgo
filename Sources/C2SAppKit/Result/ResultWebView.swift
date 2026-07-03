@@ -179,13 +179,21 @@ struct ResultWebView: NSViewRepresentable {
         }
     }
 
-    /// Google 生态之外 = 详情屏领地(结果面板不离开 Google 上下文)。
+    /// 详情屏领地判定(v2,2026-07-03 实测修正):主面板只保留**搜索/会话必需面**;
+    /// `*.google.com` 全放行是漏洞 —— support.google.com 等内容型子域也该进详情屏。
     static func isExternalDestination(_ url: URL) -> Bool {
         guard let scheme = url.scheme?.lowercased(), scheme.hasPrefix("http"),
               let host = url.host?.lowercased() else { return false }
-        let internalSuffixes = ["google.com", "gstatic.com", "googleusercontent.com",
-                                "googleapis.com", "youtube.com", "ytimg.com"]
-        return !internalSuffixes.contains { host == $0 || host.hasSuffix("." + $0) }
+        // 搜索/会话面:结果页、Lens 上传会话、登录、consent
+        let internalHosts: Set<String> = [
+            "google.com", "www.google.com", "lens.google.com",
+            "accounts.google.com", "consent.google.com", "myaccount.google.com",
+        ]
+        if internalHosts.contains(host) { return false }
+        // 资源域(子帧素材;主框架基本不会落在这里,保守放行)
+        let assetSuffixes = ["gstatic.com", "googleusercontent.com", "googleapis.com"]
+        if assetSuffixes.contains(where: { host == $0 || host.hasSuffix("." + $0) }) { return false }
+        return true
     }
 
     /// 只把 Lens 会话自身的 403 当作匿名风控;验证码、登录页和普通外链必须照常展示。
