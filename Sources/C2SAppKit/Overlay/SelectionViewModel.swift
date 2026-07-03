@@ -27,6 +27,8 @@ final class SelectionViewModel: ObservableObject {
     @Published private(set) var brushPoints: [CGPoint] = []
     /// 当前高亮词(笔刷实时选区与定格选中共用)。
     @Published private(set) var highlightedWords: [OCRWord] = []
+    /// 悬停位置(hover affordance 用,不进手势状态机)。
+    @Published var hoverLocation: CGPoint?
 
     // MARK: - 回调(OverlayWindowController 接线)
 
@@ -80,6 +82,7 @@ final class SelectionViewModel: ObservableObject {
         state = .none
         brushPoints = []
         highlightedWords = []
+        hoverLocation = nil
         engine = nil
         session = nil
         dragMode = nil
@@ -166,6 +169,16 @@ final class SelectionViewModel: ObservableObject {
     var isDraggingHandle: Bool {
         if case .handle = dragMode { return true }
         return false
+    }
+
+    /// 悬停预示(hover affordance,桌面端专属):指到哪个词,就预告「按下去选它」。
+    /// 手势进行中不提示;已在选区里的词不提示(点它不会新建搜索,在搜索框编辑)。
+    var hoveredWord: OCRWord? {
+        guard let p = hoverLocation, dragMode == nil,
+              let word = engine?.tappedWord(at: p),
+              !highlightedWords.contains(where: { $0.id == word.id })
+        else { return nil }
+        return word
     }
 
     // MARK: - 手势入口(OverlayRootView 的 DragGesture,覆盖层点坐标)

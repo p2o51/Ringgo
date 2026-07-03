@@ -29,6 +29,8 @@ struct OverlayRootView: View {
                 .allowsHitTesting(false)
             brushCanvas(size: size)
                 .allowsHitTesting(false)
+            hoverHint
+                .allowsHitTesting(false)
             wordHighlights
                 .allowsHitTesting(false)
             textHandles
@@ -101,6 +103,25 @@ struct OverlayRootView: View {
                          with: .color(.white))
         }
         .frame(width: size.width, height: size.height)
+    }
+
+    // MARK: - 悬停预示(hover affordance,桌面端专属):
+    //          指到词上 → 轻高亮预告「按下去选它」;比选中态淡一档,不喧宾
+
+    @ViewBuilder private var hoverHint: some View {
+        if let word = viewModel.hoveredWord {
+            let r = word.rect.insetBy(dx: -2, dy: -2)
+            RoundedRectangle(cornerRadius: 3, style: .continuous)
+                .fill(Color.accentColor.opacity(0.14))
+                .overlay(
+                    RoundedRectangle(cornerRadius: 3, style: .continuous)
+                        .strokeBorder(Color.accentColor.opacity(0.30), lineWidth: 1)
+                )
+                .frame(width: r.width, height: r.height)
+                .offset(x: r.minX, y: r.minY)
+                .animation((reduceMotion || reduceEffects) ? nil : .easeOut(duration: 0.08),
+                           value: word.id)
+        }
     }
 
     // MARK: - 词高亮:外扩 2pt、accent 35%、圆角 3、120ms ease 出现
@@ -229,6 +250,12 @@ struct OverlayRootView: View {
                         viewModel.dragEnded(location: value.location, start: value.startLocation)
                     }
             )
+            .onContinuousHover(coordinateSpace: .named(Self.coordinateSpaceName)) { phase in
+                switch phase {
+                case .active(let p): viewModel.hoverLocation = p
+                case .ended: viewModel.hoverLocation = nil
+                }
+            }
     }
 
     // MARK: - 底部结果面板(hidden 时不拦点击;非 hidden 时其区域手势归面板)
