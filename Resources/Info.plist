@@ -1,0 +1,38 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<key>CFBundleDevelopmentRegion</key>
+	<string>zh_CN</string>
+	<key>CFBundleExecutable</key>
+	<string>C2S</string>
+	<key>CFBundleIdentifier</key>
+	<string>dev.c2s.C2S</string>
+	<key>CFBundleInfoDictionaryVersion</key>
+	<string>6.0</string>
+	<key>CFBundleName</key>
+	<string>C2S</string>
+	<key>CFBundleDisplayName</key>
+	<string>C2S</string>
+	<key>CFBundlePackageType</key>
+	<string>APPL</string>
+	<key>CFBundleShortVersionString</key>
+	<string>0.1.0</string>
+	<key>CFBundleVersion</key>
+	<string>1</string>
+	<key>LSMinimumSystemVersion</key>
+	<string>14.0</string>
+	<key>LSUIElement</key>
+	<true/>
+	<key>NSPrincipalClass</key>
+	<string>NSApplication</string>
+	<key>NSHighResolutionCapable</key>
+	<true/>
+	<key>NSScreenCaptureUsageDescription</key>
+	<string>C2S 需要屏幕录制权限来截取当前屏幕,供圈选搜索使用。截图只在本机处理,不会自动上传。</string>
+	<key>NSContactsUsageDescription</key>
+	<string>扫描到联系人二维码(vCard)时,C2S 需要访问通讯录来帮你保存联系人。</string>
+	<key>NSCalendarsUsageDescription</key>
+	<string>扫描到日程二维码(vEvent)时,C2S 需要访问日历来帮你添加日程。</string>
+</dict>
+</plist>
