@@ -68,6 +68,8 @@ struct TranslationOverlayView: View {
                 progressCapsule(text: "翻译中 \(done)/\(total)")
             case .failed(let message):
                 failureCard(message: message)
+            case .needsDownload(let desc):
+                downloadCard(desc: desc)
             case .idle, .shown:
                 EmptyView()
             }
@@ -89,6 +91,27 @@ struct TranslationOverlayView: View {
         .padding(.vertical, 7)
         .toolbarGlass(in: Capsule())
         .overlay(Capsule().strokeBorder(Color(nsColor: .separatorColor), lineWidth: 0.5))
+    }
+
+    private func downloadCard(desc: String) -> some View {
+        let card = RoundedRectangle(cornerRadius: 12, style: .continuous)
+        return HStack(spacing: 10) {
+            Image(systemName: "arrow.down.circle")
+                .foregroundStyle(Color.accentColor)
+            Text("需要先下载 \(desc) 翻译模型")
+                .font(.callout)
+                .foregroundStyle(.primary)
+            Button("下载") {
+                controller.startDownload()
+            }
+            .buttonStyle(.borderedProminent)
+            .controlSize(.small)
+        }
+        .padding(.horizontal, 14)
+        .padding(.vertical, 10)
+        .fixedSize(horizontal: false, vertical: true)
+        .toolbarGlass(in: card)
+        .overlay(card.strokeBorder(Color(nsColor: .separatorColor), lineWidth: 0.5))
     }
 
     private func failureCard(message: String) -> some View {
