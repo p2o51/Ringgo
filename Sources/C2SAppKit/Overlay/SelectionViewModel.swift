@@ -65,6 +65,9 @@ final class SelectionViewModel: ObservableObject {
         case brush([CGPoint])
     }
     private var pendingGesture: PendingGesture?
+    /// 触觉刻度节流(跨词哒哒感,≥60ms 一次;触觉只在手指仍按住时可感)。
+    private var lastHapticTick = Date.distantPast
+    private var lastBrushCount = 0
 
     // MARK: - 生命周期(OverlayWindowController 调用)
 
@@ -265,6 +268,7 @@ final class SelectionViewModel: ObservableObject {
         // 开始新笔刷:清旧选择/矩形(结果面板不动)
         clearSelection()
         state = .brushing
+        lastBrushCount = 0
         brushPoints = [start]
         if let engine {
             let s = BrushSession(engine: engine)
@@ -279,7 +283,18 @@ final class SelectionViewModel: ObservableObject {
         brushPoints.append(p)
         if let session {
             highlightedWords = session.append([p])
+            // 跨到新词的「刻度」:此刻手指必然还按着,触觉可感(松手时机的反馈感不到)
+            if highlightedWords.count > lastBrushCount { hapticTick() }
+            lastBrushCount = highlightedWords.count
         }
+    }
+
+    /// 节流的对齐刻度(拖动中跨词才发,绝不按帧连发)。
+    private func hapticTick() {
+        let now = Date()
+        guard now.timeIntervalSince(lastHapticTick) >= 0.06 else { return }
+        lastHapticTick = now
+        Haptics.align()
     }
 
     private func finishBrush(at p: CGPoint) {
@@ -318,6 +333,9 @@ final class SelectionViewModel: ObservableObject {
         guard let target = engine.handleTarget(near: p, inBlock: anchor.block),
               let selection = engine.extendedSelection(anchorID: anchorID, targetID: target.id),
               !selection.isEmpty else { return }
+        if case .textSelected(_, _, let previousEnd) = state, previousEnd != target.id {
+            hapticTick() // 手柄跨到新词(手指仍按住,触觉可感)
+        }
         state = .textSelected(words: selection, anchorID: anchorID, endID: target.id)
         highlightedWords = selection
     }

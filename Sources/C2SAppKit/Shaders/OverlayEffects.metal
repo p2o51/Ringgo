@@ -94,9 +94,10 @@ static inline float2 c2s_lissajous(float t, int i) {
     const float luma = dot(rgb, float3(0.2126f, 0.7152f, 0.0722f));
     rgb = clamp(mix(float3(luma), rgb, clamp(saturation, 0.0f, 1.0f)), 0.0f, 1.0f);
 
-    // 亮度掩码:idle 有全屏底(0.55)+ 近点增辉;tracking 时底归零 → 纯笔尖局部辉光
+    // 亮度掩码:idle 有全屏底 + 近点增辉;tracking 时底归零 → 纯笔尖局部辉光
+    // (2026-07-03 实机:idle 0.55×0.42 太透看不见 → 底亮 0.72、层透明度 0.50;光球不动)
     const float glow = 1.0f - exp(-1.2f * wSum);
-    const float base = mix(0.55f, 0.0f, ta);
+    const float base = mix(0.72f, 0.0f, ta);
     const float intensity = base + (1.0f - base) * glow;
 
     // 乘视图自身 alpha(遮罩/边缘);输出预乘 alpha,严格钳在 [0,1]

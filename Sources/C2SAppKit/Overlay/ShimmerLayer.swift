@@ -76,7 +76,7 @@ struct ShimmerLayer: View {
         let targetOpacity: Double
         switch phase {
         case .idle:
-            targetTip = nil; targetTracking = 0; targetSaturation = 1.0; targetOpacity = 0.42
+            targetTip = nil; targetTracking = 0; targetSaturation = 1.0; targetOpacity = 0.50
         case .tracking(let tip):
             targetTip = tip; targetTracking = 1; targetSaturation = 1.0; targetOpacity = 0.50
         case .ambient:
@@ -131,7 +131,7 @@ private final class Smoother {
     private var tip: CGPoint?
     private var tracking: Double = 0
     private var saturation: Double = 1.0
-    private var opacity: Double = 0.42
+    private var opacity: Double = 0.50
     private var lastStep: Date?
 
     func step(now: Date,
