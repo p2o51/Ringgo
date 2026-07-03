@@ -48,6 +48,31 @@ final class SearchURLBuilderTests: XCTestCase {
         XCTAssertEqual((comps.queryItems ?? []).filter { $0.name == "q" }.count, 1, "只留一个 q")
     }
 
+    func testLensMultisearchAIModeReplacesUDM() throws {
+        // F15 图片可视化/编辑:同一 Lens 会话(vsrid 保留)落到 AI Mode(udm=26 → 50)
+        let base = try XCTUnwrap(URL(string:
+            "https://www.google.com/search?vsrid=ABC&udm=26&gsessionid=G1&q=old"))
+        let url = try XCTUnwrap(SearchURLBuilder.lensMultisearch(
+            currentResultURL: base, text: "用 nano banana 编辑这张图片", aiMode: true))
+        let comps = try XCTUnwrap(URLComponents(url: url, resolvingAgainstBaseURL: false))
+        let items = Dictionary(uniqueKeysWithValues: (comps.queryItems ?? []).map { ($0.name, $0.value) })
+        XCTAssertEqual(items["udm"], "50", "AI Mode 参数替换原 udm")
+        XCTAssertEqual((comps.queryItems ?? []).filter { $0.name == "udm" }.count, 1, "只留一个 udm")
+        XCTAssertEqual(items["q"], "用 nano banana 编辑这张图片")
+        XCTAssertEqual(items["vsrid"], "ABC", "图片会话参数必须原样保留")
+        XCTAssertEqual(items["gsessionid"], "G1")
+    }
+
+    func testLensMultisearchDefaultKeepsUDM() throws {
+        // 非 AI Mode(整屏提问等):原 udm 原样保留
+        let base = try XCTUnwrap(URL(string:
+            "https://www.google.com/search?vsrid=ABC&udm=26&q=old"))
+        let url = try XCTUnwrap(SearchURLBuilder.lensMultisearch(currentResultURL: base, text: "问题"))
+        let comps = try XCTUnwrap(URLComponents(url: url, resolvingAgainstBaseURL: false))
+        let items = Dictionary(uniqueKeysWithValues: (comps.queryItems ?? []).map { ($0.name, $0.value) })
+        XCTAssertEqual(items["udm"], "26")
+    }
+
     func testLensMultisearchRejectsNonLensSessionURL() throws {
         // 无 vsrid 的普通文字搜索页 → nil(调用方降级为纯文字搜索)
         let plain = try XCTUnwrap(URL(string: "https://www.google.com/search?q=hello"))

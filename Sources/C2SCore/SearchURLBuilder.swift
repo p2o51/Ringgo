@@ -23,8 +23,11 @@ public enum SearchURLBuilder {
     /// Lens multisearch(图+文,features F11):在**当前结果页 URL**上追加/替换 `q=<text>`。
     /// 结果页 URL 里的 vsrid/gsessionid 等参数承载图片会话 —— 保留它们、只动 q,
     /// 图就不会被顶掉(与谷歌移动版「添加更多搜索条件」同机制)。
+    /// aiMode = true → udm 替换为 50,同一 Lens 会话落在 AI Mode
+    /// (图片可视化/nano banana 编辑等 prompt 型查询用;结果页原有 udm=26 会被顶掉)。
     /// 非 Lens 会话 URL(无 vsrid / 非 google /search)返回 nil,调用方降级为纯文字搜索。
-    public static func lensMultisearch(currentResultURL: URL, text: String) -> URL? {
+    public static func lensMultisearch(currentResultURL: URL, text: String,
+                                       aiMode: Bool = false) -> URL? {
         guard var comps = URLComponents(url: currentResultURL, resolvingAgainstBaseURL: false),
               let host = comps.host?.lowercased(),
               host == "google.com" || host.hasSuffix(".google.com"),
@@ -33,6 +36,10 @@ public enum SearchURLBuilder {
         var items = comps.queryItems ?? []
         guard items.contains(where: { $0.name == "vsrid" }) else { return nil }
         items.removeAll { $0.name == "q" }
+        if aiMode {
+            items.removeAll { $0.name == "udm" }
+            items.append(URLQueryItem(name: "udm", value: "50"))
+        }
         items.append(URLQueryItem(name: "q", value: text))
         comps.queryItems = items
         return comps.url

@@ -1,6 +1,6 @@
 import SwiftUI
 
-/// 迷你工具条的选区类型(决定按钮集合:文字有「翻译」,图片只有「复制」)。
+/// 迷你工具条的选区类型(决定按钮集合:文字 = 翻译/可视化,图片 = 翻译/可视化/编辑)。
 enum MiniToolbarKind: Equatable {
     case text
     case image

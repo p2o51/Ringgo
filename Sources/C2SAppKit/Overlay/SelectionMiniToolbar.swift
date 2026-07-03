@@ -2,19 +2,29 @@ import SwiftUI
 
 /// 选区迷你工具条(features/ui-style:选中文字/图片后出现在选区尾部附近)。
 /// 无输入框——搜索编辑在结果面板里;这里只有动作按钮:
-/// .text → [复制][翻译],.image → [复制]。
+/// .text → [翻译][可视化],.image → [翻译][可视化][编辑](复制统一走 ⌘C)。
 /// 视觉:横排胶囊 + Liquid Glass 背板 + hairline 描边 + 轻投影;中性色,不用光谱色。
 /// 摆位:调用方用 `estimatedSize(for:)` + `placement(selection:canvas:size:)` 计算
 /// top-left origin(覆盖层点坐标,左上原点)后直接放置;出现动画在组件内部。
 /// 触觉(Haptics.confirm)由调用方在回调里做,组件只回调。
 struct SelectionMiniToolbar: View {
     let kind: MiniToolbarKind
-    /// 选区翻译模式进行中 → 「翻译」按钮高亮(再点退出,面板回普通搜索)。
-    var translateActive: Bool = false
+    /// 当前 prompt 模式(= 面板 chip 的模式):对应按钮高亮(再点退出/重发)。
+    /// v3 起两键并存,整胶囊 accent 高亮会指代不明 → 改为按钮级 accent 前景高亮。
+    var activeMode: QueryPromptMode?
     let reduceEffects: Bool
-    var onCopy: () -> Void
-    /// nil 或 kind == .image 时不显示翻译按钮。
+    /// nil = 不显示对应按钮。
     var onTranslate: (() -> Void)?
+    var onVisualize: (() -> Void)?
+    /// 图片选区「编辑」内联输入的展开状态。容器持有(参与尺寸估算与摆位):
+    /// 点「编辑」→ 按钮旁展开指令输入框(自动聚焦),回车才发起编辑(v4,2026-07-03)。
+    var editExpanded: Binding<Bool> = .constant(false)
+    /// 编辑指令提交(nano banana);nil = 不显示编辑按钮。
+    var onEditSubmit: ((String) -> Void)?
+
+    /// 指令草稿(提交后保留,再次展开可微调重发)。
+    @State private var editText = ""
+    @FocusState private var editFieldFocused: Bool
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     /// onAppear 驱动一次的入场标记(scale 0.92→1 + 淡入;减弱动态 → 纯淡入)。
@@ -33,6 +43,12 @@ struct SelectionMiniToolbar: View {
         static let screenMargin: CGFloat = 8     // 屏幕边缘留白
         /// 单按钮内容估算宽:SF 图标 ~14pt + 间距 5 + 两个汉字(12pt medium)~25pt。
         static let estimatedButtonContentWidth: CGFloat = 44
+        /// 三字按钮(可视化)的内容估算宽:多一个汉字 ~13pt。
+        static let estimatedWideButtonContentWidth: CGFloat = 57
+        /// 编辑内联输入框宽 / 提交按钮区宽(图标 16 + 左右 padding)。
+        static let editFieldWidth: CGFloat = 210
+        static let editSubmitWidth: CGFloat = 26
+        static let editFieldLeadingGap: CGFloat = 8
     }
 
     private var motionReduced: Bool { reduceEffects || reduceMotion }
@@ -40,30 +56,58 @@ struct SelectionMiniToolbar: View {
     // MARK: - Body
 
     var body: some View {
-        // v2(2026-07-03):复制按钮移除(⌘C 直接复制文字/图片),只剩翻译
+        // v3(2026-07-03):.text = [翻译][可视化],.image = [翻译][可视化][编辑];
+        // 复制按钮仍不回归(⌘C 直接复制文字/图片)
         HStack(spacing: 0) {
-            if kind == .text, let onTranslate {
-                toolbarButton(icon: "translate", title: "翻译",
-                              action: onTranslate, highlighted: translateActive)
+            switch kind {
+            case .text:
+                if let onTranslate {
+                    toolbarButton(icon: "translate", title: "翻译",
+                                  action: onTranslate, highlighted: activeMode == .translate)
+                }
+                if onTranslate != nil, onVisualize != nil { divider }
+                if let onVisualize {
+                    toolbarButton(icon: "chart.bar.xaxis", title: "可视化",
+                                  action: onVisualize, highlighted: activeMode == .visualize)
+                }
+            case .image:
+                if editExpanded.wrappedValue, onEditSubmit != nil {
+                    // 编辑输入态:[编辑(高亮,点击收起)][指令输入][↑ 提交]
+                    toolbarButton(icon: "wand.and.stars", title: "编辑",
+                                  action: { editExpanded.wrappedValue = false },
+                                  highlighted: true)
+                    divider
+                    editField
+                } else {
+                    if let onTranslate {
+                        toolbarButton(icon: "translate", title: "翻译",
+                                      action: onTranslate, highlighted: activeMode == .translate)
+                    }
+                    if onTranslate != nil, onVisualize != nil { divider }
+                    if let onVisualize {
+                        toolbarButton(icon: "chart.bar.xaxis", title: "可视化",
+                                      action: onVisualize, highlighted: activeMode == .visualize)
+                    }
+                    if onVisualize != nil, onEditSubmit != nil { divider }
+                    if onEditSubmit != nil {
+                        toolbarButton(icon: "wand.and.stars", title: "编辑",
+                                      action: { editExpanded.wrappedValue = true },
+                                      highlighted: activeMode == .editImage)
+                    }
+                }
             }
         }
         .padding(.horizontal, Metrics.paddingH)
         .frame(height: Metrics.height)
-        // 高亮 = 整个胶囊变 accent 实底(选中态语义);平时 = Liquid Glass。
-        // 不在玻璃胶囊内部再塞高亮小胶囊 —— 双层药丸难看(2026-07-03 实测)。
-        .background {
-            if translateActive {
-                Capsule().fill(Color.accentColor)
-            }
-        }
-        .modifier(GlassWhenInactive(active: translateActive))
+        // v3:两键并存,整胶囊 accent 实底(v2 单键开关语义)已不可用 ——
+        // 高亮改为按钮级 accent 前景(玻璃胶囊常驻;胶囊内塞小胶囊依旧不做,双层药丸难看)。
+        .toolbarGlass(in: Capsule())
         .overlay(
-            Capsule().strokeBorder(
-                translateActive ? Color.white.opacity(0.25) : Color(nsColor: .separatorColor),
-                lineWidth: Metrics.hairline)
+            Capsule().strokeBorder(Color(nsColor: .separatorColor),
+                                   lineWidth: Metrics.hairline)
         )
         .shadow(color: .black.opacity(0.16), radius: 5, y: 2)
-        .animation(motionReduced ? nil : .easeOut(duration: 0.12), value: translateActive)
+        .animation(motionReduced ? nil : .easeOut(duration: 0.12), value: activeMode)
         .scaleEffect(motionReduced || appeared ? 1 : 0.92)
         .opacity(appeared ? 1 : 0)
         .onAppear {
@@ -78,24 +122,63 @@ struct SelectionMiniToolbar: View {
 
     // MARK: - 子视图
 
-    /// 按钮 = SF 图标 + 小字,plain 风格,中性前景色(不着 accent,克制)。
+    /// 按钮 = SF 图标 + 小字,plain 风格;平时中性前景色(克制),
+    /// 模式进行中 = accent 前景 + semibold(按钮级高亮,见 body 注释)。
     private func toolbarButton(icon: String, title: String,
                                action: @escaping () -> Void,
                                highlighted: Bool = false) -> some View {
         Button(action: action) {
             HStack(spacing: Metrics.iconTextSpacing) {
                 Image(systemName: icon)
-                    .font(.system(size: Metrics.fontSize, weight: .medium))
+                    .font(.system(size: Metrics.fontSize, weight: highlighted ? .semibold : .medium))
                 Text(title)
-                    .font(.system(size: Metrics.fontSize, weight: .medium))
+                    .font(.system(size: Metrics.fontSize, weight: highlighted ? .semibold : .medium))
             }
-            .foregroundStyle(highlighted ? AnyShapeStyle(Color.white) : AnyShapeStyle(.primary))
+            .foregroundStyle(highlighted ? AnyShapeStyle(Color.accentColor) : AnyShapeStyle(.primary))
             .padding(.horizontal, Metrics.buttonPaddingH)
             .frame(maxHeight: .infinity)
             .contentShape(Rectangle()) // 整个按钮区域可点,不只文字
         }
         .buttonStyle(.plain)
         .accessibilityLabel(highlighted ? "\(title)(进行中,点按退出)" : title)
+    }
+
+    /// 编辑指令内联输入:自动聚焦,回车/↑ 提交(空指令不发);草稿保留可微调重发。
+    private var editField: some View {
+        HStack(spacing: 4) {
+            TextField("描述要怎么改这张图…", text: $editText)
+                .textFieldStyle(.plain)
+                .font(.system(size: Metrics.fontSize + 1))
+                .frame(width: Metrics.editFieldWidth)
+                .focused($editFieldFocused)
+                .onSubmit(submitEdit)
+                .onAppear {
+                    // 异步一拍等字段挂进视图树再要焦点(展开当帧要不到)
+                    DispatchQueue.main.async { editFieldFocused = true }
+                }
+            Button(action: submitEdit) {
+                Image(systemName: "arrow.up.circle.fill")
+                    .font(.system(size: 16, weight: .medium))
+                    .foregroundStyle(canSubmitEdit
+                                     ? AnyShapeStyle(Color.accentColor)
+                                     : AnyShapeStyle(.tertiary))
+            }
+            .buttonStyle(.plain)
+            .disabled(!canSubmitEdit)
+            .accessibilityLabel("提交编辑指令")
+        }
+        .padding(.leading, Metrics.editFieldLeadingGap)
+    }
+
+    private var canSubmitEdit: Bool {
+        !editText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+    }
+
+    private func submitEdit() {
+        let text = editText.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !text.isEmpty else { return }
+        editExpanded.wrappedValue = false
+        onEditSubmit?(text)
     }
 
     /// 按钮之间的 hairline 竖分隔线(留出上下空隙,不顶到胶囊边)。
@@ -108,17 +191,21 @@ struct SelectionMiniToolbar: View {
 
     // MARK: - 摆位(纯静态函数,调用方定位用)
 
-    /// 估算尺寸:按 kind 的完整按钮集合估算(.text 含翻译按钮)。
-    /// 若 .text 且 onTranslate == nil,实际渲染会窄于估算——工具条右缘略缩进,
+    /// 估算尺寸:按 kind 的完整按钮集合估算。
+    /// 若某回调为 nil,实际渲染会窄于估算——工具条右缘略缩进,
     /// 只是视觉右对齐略松,不影响「不相交/不出屏」保证。
-    static func estimatedSize(for kind: MiniToolbarKind) -> CGSize {
-        let buttonWidth = Metrics.estimatedButtonContentWidth + Metrics.buttonPaddingH * 2
+    static func estimatedSize(for kind: MiniToolbarKind, editExpanded: Bool = false) -> CGSize {
+        let narrow = Metrics.estimatedButtonContentWidth + Metrics.buttonPaddingH * 2
+        let wide = Metrics.estimatedWideButtonContentWidth + Metrics.buttonPaddingH * 2
         let width: CGFloat
         switch kind {
-        case .text:
-            width = Metrics.paddingH * 2 + buttonWidth // v2:仅「翻译」一个按钮
-        case .image:
-            width = 0 // v2:图片选区无迷你条(复制走 ⌘C)
+        case .text:  // [翻译][可视化]
+            width = Metrics.paddingH * 2 + narrow + Metrics.hairline + wide
+        case .image where editExpanded: // [编辑][指令输入][↑]
+            width = Metrics.paddingH * 2 + narrow + Metrics.hairline
+                + Metrics.editFieldLeadingGap + Metrics.editFieldWidth + Metrics.editSubmitWidth
+        case .image: // [翻译][可视化][编辑]
+            width = Metrics.paddingH * 2 + narrow * 2 + Metrics.hairline * 2 + wide
         }
         return CGSize(width: width, height: Metrics.height)
     }
@@ -181,19 +268,5 @@ struct SelectionMiniToolbar: View {
         // 兜底:全屏级大选区,无法不相交;保证不出屏,贴选区右下角内侧。
         return CGPoint(x: clampedX(selection.maxX - size.width - margin),
                        y: clampedY(selection.maxY - size.height - margin))
-    }
-}
-
-
-/// 非激活时才上玻璃背板(激活时是 accent 实底,叠玻璃会发灰)。
-private struct GlassWhenInactive: ViewModifier {
-    let active: Bool
-
-    func body(content: Content) -> some View {
-        if active {
-            content
-        } else {
-            content.toolbarGlass(in: Capsule())
-        }
     }
 }

@@ -25,10 +25,23 @@ public final class AppCoordinator: ObservableObject {
     private var currentCapture: CaptureResult?
     private var lastTextQuery: String?
     private var lastImageSearchRect: CGRect?
-    /// 整屏提问:等 Lens 会话 URL(vsrid)就绪后要追加的文字(F11 整屏版)。
-    private var pendingLensQuestion: String?
-    /// 选区翻译模式(2026-07-03:prompt 包装 + Google AI Mode,mini 工具条「翻译」开关)。
-    private var selectionTranslateActive = false
+    /// 等 Lens 会话 URL(vsrid)就绪后要以 multisearch 挂上的查询
+    /// (F11 整屏提问 / F15 图片可视化与编辑共用)。
+    private struct PendingLensPrompt {
+        /// 真实查询(可能是 prompt 包装)。
+        let query: String
+        /// 药丸显示文本(nil = 只显示缩略图)。
+        let pillText: String?
+        let chip: QueryModeChip?
+        let aiMode: Bool
+    }
+    private var pendingLensPrompt: PendingLensPrompt?
+    /// 当前 prompt 模式(翻译/可视化/编辑;nil = 普通搜索)。决定搜索框
+    /// 提交时的重新包装路由;任何新普通搜索都退出模式。
+    private var promptMode: QueryPromptMode?
+    /// 当前圈图的 Lens 会话结果页 URL(带 vsrid;新搜索时清空)。
+    /// 图片可视化/编辑在它之上 multisearch,绝不能用上一张图的旧会话。
+    private var lensSessionURL: URL?
     /// 药丸缩略图:圈出的图的查询上下文(与文字 query 对等),错误卡/重试期间保留。
     private var lastLensThumbnail: CGImage?
     private var lensAttempt = 0
@@ -136,6 +149,10 @@ public final class AppCoordinator: ObservableObject {
         cb.onCopyImage = { [weak self] rect in self?.copyImageSelection(overlayRect: rect) }
         cb.onLensPageURL = { [weak self] url in self?.handleLensPageURL(url) }
         cb.onToggleTranslateSelection = { [weak self] in self?.toggleSelectionTranslation() }
+        cb.onToggleVisualizeSelection = { [weak self] in self?.toggleSelectionVisualization() }
+        cb.onTranslateImage = { [weak self] in self?.translateImageSelection() }
+        cb.onVisualizeImage = { [weak self] in self?.visualizeImageSelection() }
+        cb.onSubmitImageEdit = { [weak self] text in self?.performImageEdit(instruction: text) }
         cb.onLensBlocked = { [weak self] reason in self?.handleLensBlocked(reason) }
         cb.onLensFailure = { [weak self] reason in self?.handleLensFailure(reason) }
         cb.onDismiss = { [weak self] in self?.dismissOverlay() }
@@ -167,8 +184,9 @@ public final class AppCoordinator: ObservableObject {
         currentCapture = nil
         lastImageSearchRect = nil
         lastLensThumbnail = nil
-        pendingLensQuestion = nil
-        selectionTranslateActive = false
+        pendingLensPrompt = nil
+        promptMode = nil
+        lensSessionURL = nil
         overlay.dismiss()
         phase = .idle
         previousApp?.activate()
@@ -182,8 +200,9 @@ public final class AppCoordinator: ObservableObject {
         guard !q.isEmpty else { return }
         lastTextQuery = q
         lastLensThumbnail = nil
-        pendingLensQuestion = nil
-        selectionTranslateActive = false // 普通搜索 = 退出翻译模式
+        pendingLensPrompt = nil
+        lensSessionURL = nil
+        promptMode = nil // 普通搜索 = 退出 prompt 模式
         guard let url = search.textSearchURL(query: q, viewport: overlay.viewportSize) else { return }
         overlay.showResult(.web(url), query: q)
     }
@@ -193,7 +212,7 @@ public final class AppCoordinator: ObservableObject {
     /// 药丸显示原文(可编辑重译)+ 模式 chip;按钮高亮。再点 = 退回普通搜索。
     private func toggleSelectionTranslation() {
         guard let text = lastTextQuery, !text.isEmpty else { return }
-        if selectionTranslateActive {
+        if promptMode == .translate {
             performTextSearch(text) // 内部清 chip、清模式
             return
         }
@@ -206,9 +225,90 @@ public final class AppCoordinator: ObservableObject {
         guard let url = SearchURLBuilder.googleSearch(query: prompt,
                                                       viewport: overlay.viewportSize,
                                                       aiMode: true) else { return }
-        selectionTranslateActive = true
+        promptMode = .translate
         lastTextQuery = text // 药丸保持原文,可编辑后重译
-        overlay.showResult(.web(url), query: text, translateChip: "翻译 · \(targetName)")
+        overlay.showResult(.web(url), query: text,
+                           chip: QueryModeChip(mode: .translate, icon: "translate",
+                                               label: "翻译 · \(targetName)"))
+    }
+
+    // MARK: - F15 可视化 / 图片编辑(2026-07-03:AI Mode 让 Gemini 出图表或 nano banana 出图)
+
+    /// 迷你工具条「可视化」开关(文字选区,与「翻译」同构):
+    /// 开 = prompt 包装 + Google AI Mode,让 Gemini 用可视化图表或 nano banana
+    /// 生成图片来可视化选中文字;药丸显示原文(可编辑重发)+ chip。再点 = 退回普通搜索。
+    private func toggleSelectionVisualization() {
+        guard let text = lastTextQuery, !text.isEmpty else { return }
+        if promptMode == .visualize {
+            performTextSearch(text)
+            return
+        }
+        performSelectionVisualization(of: text)
+    }
+
+    private func performSelectionVisualization(of text: String) {
+        let prompt = "请可视化下面的内容:适合数据或结构就生成可视化图表"
+            + "(信息图/流程图/对比表等),更适合画面就用 nano banana 生成一张图片:\n\n\(text)"
+        guard let url = SearchURLBuilder.googleSearch(query: prompt,
+                                                      viewport: overlay.viewportSize,
+                                                      aiMode: true) else { return }
+        promptMode = .visualize
+        lastTextQuery = text
+        overlay.showResult(.web(url), query: text, chip: Self.visualizeChip)
+    }
+
+    /// 迷你工具条「翻译」(图片选区,一次性动作):当前 Lens 会话 multisearch
+    /// 挂翻译 prompt + AI Mode,Gemini 把图里的文字翻成目标语言(与文字翻译同一设置)。
+    /// 不设 promptMode:后续在搜索框输入 = 同会话 AI Mode 追问(multisearch 路由)。
+    private func translateImageSelection() {
+        let targetName = currentTranslationTargetName()
+        let prompt = "请把这张图片里的所有文字翻译成\(targetName),按原文的结构和顺序输出译文。"
+        fireLensPrompt(prompt, pillText: nil,
+                       chip: QueryModeChip(mode: .translate, icon: "translate",
+                                           label: "翻译 · \(targetName)"),
+                       aiMode: true)
+    }
+
+    /// 迷你工具条「可视化」(图片选区,一次性动作):当前 Lens 会话 multisearch
+    /// 挂可视化 prompt + AI Mode(图随会话参数保留,Gemini 能看到圈出的图)。
+    /// 不设 promptMode:后续在搜索框输入 = 同会话 AI Mode 追问(multisearch 路由)。
+    private func visualizeImageSelection() {
+        let prompt = "请可视化这张图片的内容:适合数据或结构就生成可视化图表"
+            + "(信息图/流程图/对比表等),更适合画面就用 nano banana 生成一张新图片来呈现。"
+        fireLensPrompt(prompt, pillText: nil, chip: Self.visualizeChip, aiMode: true)
+    }
+
+    /// 编辑指令提交(v4,2026-07-03:迷你工具条「编辑」旁的内联输入框回车;
+    /// 编辑模式下面板搜索框回车 = 同一入口):nano banana prompt 包装 +
+    /// 当前 Lens 会话 multisearch + AI Mode。模式保持:改指令再回车 = 对原图重新编辑。
+    private func performImageEdit(instruction: String) {
+        let q = instruction.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !q.isEmpty else { return }
+        promptMode = .editImage
+        let prompt = "请用 nano banana 编辑这张图片,直接生成编辑后的图片。编辑要求:\(q)"
+        fireLensPrompt(prompt, pillText: q, chip: Self.editChip, aiMode: true)
+    }
+
+    private static let visualizeChip =
+        QueryModeChip(mode: .visualize, icon: "chart.bar.xaxis", label: "可视化")
+    private static let editChip =
+        QueryModeChip(mode: .editImage, icon: "wand.and.stars", label: "编辑 · Nano Banana")
+
+    /// 在当前圈图的 Lens 会话上挂 prompt 型查询:会话 URL(vsrid)已就绪 → 立即
+    /// multisearch;未就绪(上传还在飞)→ 挂起,handleLensPageURL 就绪后自动发出。
+    private func fireLensPrompt(_ query: String, pillText: String?,
+                                chip: QueryModeChip?, aiMode: Bool) {
+        guard lastLensThumbnail != nil else { return }
+        if let base = lensSessionURL,
+           let url = SearchURLBuilder.lensMultisearch(currentResultURL: base,
+                                                      text: query, aiMode: aiMode) {
+            lastTextQuery = pillText
+            overlay.showResult(.web(url), query: pillText,
+                               queryImage: lastLensThumbnail, chip: chip)
+        } else {
+            pendingLensPrompt = PendingLensPrompt(query: query, pillText: pillText,
+                                                  chip: chip, aiMode: aiMode)
+        }
     }
 
     private func currentTranslationTargetName() -> String {
@@ -225,10 +325,21 @@ public final class AppCoordinator: ObservableObject {
     private func handleQuerySubmit(_ text: String, currentPageURL: URL?) {
         let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else { return }
-        if selectionTranslateActive {
+        switch promptMode {
+        case .translate:
             // 翻译模式:编辑药丸原文后回车 = 重译新文本(模式保持)
             performSelectionTranslation(of: trimmed)
             return
+        case .visualize:
+            // 可视化模式(文字):编辑原文后回车 = 重新可视化(模式保持)
+            performSelectionVisualization(of: trimmed)
+            return
+        case .editImage:
+            // 编辑模式(图片):回车 = 以新指令对原图重新编辑(模式保持)
+            performImageEdit(instruction: trimmed)
+            return
+        case nil:
+            break
         }
         if lastLensThumbnail != nil,
            let base = currentPageURL,
@@ -246,8 +357,9 @@ public final class AppCoordinator: ObservableObject {
         guard !px.isNull, px.width >= 4, px.height >= 4,
               let cropped = cap.image.cropping(to: px) else { return }
         lastTextQuery = nil
-        pendingLensQuestion = nil
-        selectionTranslateActive = false
+        pendingLensPrompt = nil
+        promptMode = nil
+        lensSessionURL = nil // 新上传 = 新会话,旧 vsrid 作废(防可视化/编辑挂错图)
         lastImageSearchRect = overlayRect
         // 药丸缩略图 = 圈出的图(查询上下文与文字 query 对等)
         lastLensThumbnail = LensService.downscaled(cropped, maxDimension: 240)
@@ -273,7 +385,9 @@ public final class AppCoordinator: ObservableObject {
         guard !q.isEmpty else { return }
         lastTextQuery = nil
         lastImageSearchRect = nil
-        pendingLensQuestion = q
+        promptMode = nil
+        lensSessionURL = nil // 新上传 = 新会话
+        pendingLensPrompt = PendingLensPrompt(query: q, pillText: q, chip: nil, aiMode: false)
         lastLensThumbnail = LensService.downscaled(cap.image, maxDimension: 240)
         lensAttempt += 1
         do {
@@ -287,15 +401,23 @@ public final class AppCoordinator: ObservableObject {
         }
     }
 
-    /// Lens 结果页 URL 就绪:整屏提问的文字此刻才能挂上(vsrid 会话参数在 URL 里)。
+    /// 面板页面 URL 变化:带 vsrid 的 Lens 结果页 = 当前圈图会话的真源
+    /// (可视化/编辑在其上 multisearch);挂起的 prompt 此刻才能发出。
     private func handleLensPageURL(_ url: URL?) {
-        guard let question = pendingLensQuestion,
-              let url,
-              let multisearch = SearchURLBuilder.lensMultisearch(currentResultURL: url, text: question)
+        guard let url else { return }
+        if let items = URLComponents(url: url, resolvingAgainstBaseURL: false)?.queryItems,
+           items.contains(where: { $0.name == "vsrid" }) {
+            lensSessionURL = url
+        }
+        guard let pending = pendingLensPrompt,
+              let multisearch = SearchURLBuilder.lensMultisearch(currentResultURL: url,
+                                                                 text: pending.query,
+                                                                 aiMode: pending.aiMode)
         else { return }
-        pendingLensQuestion = nil
-        lastTextQuery = question
-        overlay.showResult(.web(multisearch), query: question, queryImage: lastLensThumbnail)
+        pendingLensPrompt = nil
+        lastTextQuery = pending.pillText
+        overlay.showResult(.web(multisearch), query: pending.pillText,
+                           queryImage: lastLensThumbnail, chip: pending.chip)
     }
 
     /// 迷你工具条「复制」(图片选区):按坐标真源裁剪并写入剪贴板。

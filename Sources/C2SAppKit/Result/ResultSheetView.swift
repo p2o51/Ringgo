@@ -30,9 +30,9 @@ public final class ResultSheetModel: ObservableObject {
     public var userMovedPanel = false
     /// 主 frame URL 变化上报(整屏提问要等带 vsrid 的 URL 就绪)。
     public var onPageURLChanged: ((URL?) -> Void)?
-    /// 选区翻译模式 chip(nil = 非翻译模式):药丸里显示「翻译 · 目标语言」,
-    /// 真实查询是 prompt 包装 + AI Mode,药丸文本仍是原文(可编辑重译)。
-    @Published public var translateChipLabel: String?
+    /// prompt 模式 chip(nil = 普通搜索):翻译/可视化/图片编辑。真实查询是
+    /// prompt 包装 + AI Mode,药丸文本仍是原文或指令(可编辑重发)。
+    @Published public var modeChip: QueryModeChip?
     /// 详情屏(双联手机屏):点结果里的外部链接后在旁边展开;nil = 收起。
     @Published public var detailURL: URL?
     /// 同一链接再次点击也要重载。
@@ -264,12 +264,12 @@ struct ResultSheetView: View {
             Image(systemName: "magnifyingglass")
                 .font(.system(size: 14, weight: .medium))
                 .foregroundStyle(.secondary)
-            if let chip = model.translateChipLabel {
-                // 翻译模式 chip(2026-07-03):真实查询是 prompt+AI Mode,这里标示模式
+            if let chip = model.modeChip {
+                // prompt 模式 chip(翻译/可视化/编辑):真实查询是 prompt+AI Mode,这里标示模式
                 HStack(spacing: 4) {
-                    Image(systemName: "translate")
+                    Image(systemName: chip.icon)
                         .font(.system(size: 10, weight: .semibold))
-                    Text(chip)
+                    Text(chip.label)
                         .font(.system(size: 11, weight: .medium))
                 }
                 .padding(.horizontal, 8)
@@ -289,8 +289,9 @@ struct ResultSheetView: View {
                         .strokeBorder(Color(nsColor: .separatorColor), lineWidth: 0.5))
             }
             // 可编辑的查询框:圈选文字直接进框可改;图搜时为「添加到搜索」追加条件。
-            // 不用 @FocusState 自动聚焦:面板出现时不抢覆盖层键盘焦点。
-            TextField(model.queryImage != nil ? "添加到搜索" : "搜索", text: $editText)
+            // 不用 @FocusState 自动聚焦:面板出现时不抢覆盖层键盘焦点
+            // (图片编辑的指令输入在迷你工具条内联完成,v4)。
+            TextField(pillPlaceholder, text: $editText)
                 .textFieldStyle(.plain)
                 .font(.system(size: 15))
                 .frame(minWidth: 80)
@@ -300,6 +301,12 @@ struct ResultSheetView: View {
         .frame(height: 44)
         .frame(maxWidth: .infinity, alignment: .leading)
         .background(Capsule().fill(.quaternary))
+    }
+
+    /// 占位符按模式:编辑图片 = 指令输入;图搜 = 追加条件;其余 = 搜索。
+    private var pillPlaceholder: String {
+        if model.modeChip?.mode == .editImage { return "描述要怎么改这张图…" }
+        return model.queryImage != nil ? "添加到搜索" : "搜索"
     }
 
     private func submitQuery() {

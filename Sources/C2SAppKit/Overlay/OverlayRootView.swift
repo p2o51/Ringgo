@@ -16,8 +16,14 @@ struct OverlayRootView: View {
     var onCopyImage: (CGRect) -> Void = { _ in }
     var onPickTranslationTarget: (String) -> Void = { _ in }
     var onToggleTranslateSelection: () -> Void = {}
+    var onToggleVisualizeSelection: () -> Void = {}
+    var onTranslateImage: () -> Void = {}
+    var onVisualizeImage: () -> Void = {}
+    var onSubmitImageEdit: (String) -> Void = { _ in }
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    /// 图片选区「编辑」内联输入展开中(参与迷你工具条尺寸估算/摆位;换选区即收起)。
+    @State private var imageEditExpanded = false
 
     private static let coordinateSpaceName = "c2s.overlay"
 
@@ -53,6 +59,9 @@ struct OverlayRootView: View {
         }
         .frame(width: size.width, height: size.height, alignment: .topLeading)
         .coordinateSpace(name: Self.coordinateSpaceName)
+        .onChange(of: viewModel.rectSelection) { _, _ in
+            imageEditExpanded = false // 换框/调框 = 新意图,编辑输入收起
+        }
     }
 
     /// 微光形态由选择状态派生(机制 §8 状态机:idle → tracking → ambient)。
@@ -265,18 +274,38 @@ struct OverlayRootView: View {
 
     @ViewBuilder private func miniToolbar(size: CGSize) -> some View {
         if case .hidden = sheetModel.content {} // 面板显隐不影响迷你条,仅为读依赖
-        // v2:仅文字选区显示(单「翻译」按钮);复制统一走 ⌘C(文字/图片皆可)
-        if viewModel.miniToolbarKind == .text, let bounds = viewModel.selectionBounds {
-            let toolbarSize = SelectionMiniToolbar.estimatedSize(for: .text)
+        // v3:文字 = [翻译][可视化],图片 = [翻译][可视化][编辑];复制统一走 ⌘C(文字/图片皆可)
+        if let kind = viewModel.miniToolbarKind, let bounds = viewModel.selectionBounds {
+            let toolbarSize = SelectionMiniToolbar.estimatedSize(
+                for: kind, editExpanded: kind == .image && imageEditExpanded)
             let origin = SelectionMiniToolbar.placement(selection: bounds, canvas: size, size: toolbarSize)
-            SelectionMiniToolbar(
-                kind: .text,
-                translateActive: sheetModel.translateChipLabel != nil,
-                reduceEffects: reduceEffects || reduceMotion,
-                onCopy: {},
-                onTranslate: { onToggleTranslateSelection() })
-                .offset(x: origin.x, y: origin.y)
-                .id("text-\(Int(bounds.minX))-\(Int(bounds.minY))-\(Int(bounds.width))")
+            let activeMode = sheetModel.modeChip?.mode
+            switch kind {
+            case .text:
+                SelectionMiniToolbar(
+                    kind: .text,
+                    activeMode: activeMode,
+                    reduceEffects: reduceEffects || reduceMotion,
+                    onTranslate: { onToggleTranslateSelection() },
+                    onVisualize: { onToggleVisualizeSelection() })
+                    .offset(x: origin.x, y: origin.y)
+                    .id("text-\(Int(bounds.minX))-\(Int(bounds.minY))-\(Int(bounds.width))")
+            case .image:
+                SelectionMiniToolbar(
+                    kind: .image,
+                    activeMode: activeMode,
+                    reduceEffects: reduceEffects || reduceMotion,
+                    onTranslate: { onTranslateImage() },
+                    onVisualize: { onVisualizeImage() },
+                    editExpanded: $imageEditExpanded,
+                    onEditSubmit: { onSubmitImageEdit($0) })
+                    .offset(x: origin.x, y: origin.y)
+                    // 展开/收起时宽度与摆位一起动(动画在 offset 之后才盖得到摆位;减弱动态直切)
+                    .animation((reduceMotion || reduceEffects) ? nil
+                               : .spring(response: 0.25, dampingFraction: 0.85),
+                               value: imageEditExpanded)
+                    .id("image-\(Int(bounds.minX))-\(Int(bounds.minY))-\(Int(bounds.width))")
+            }
         }
     }
 

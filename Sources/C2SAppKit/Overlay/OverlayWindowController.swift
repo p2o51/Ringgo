@@ -50,6 +50,14 @@ public final class OverlayWindowController {
         public var onLensPageURL: (URL?) -> Void = { _ in }
         /// 迷你工具条「翻译」开关(选区翻译 = prompt 包装 + Google AI Mode)。
         public var onToggleTranslateSelection: () -> Void = {}
+        /// 迷你工具条「可视化」开关(文字选区:prompt 包装 + AI Mode,图表/nano banana)。
+        public var onToggleVisualizeSelection: () -> Void = {}
+        /// 迷你工具条「翻译」(图片选区:Lens 会话 multisearch + AI Mode,一次性动作)。
+        public var onTranslateImage: () -> Void = {}
+        /// 迷你工具条「可视化」(图片选区:Lens 会话 multisearch + AI Mode,一次性动作)。
+        public var onVisualizeImage: () -> Void = {}
+        /// 迷你工具条「编辑」指令提交(图片选区:内联输入框回车,nano banana 编辑)。
+        public var onSubmitImageEdit: (String) -> Void = { _ in }
         public var onDismiss: () -> Void = {}
         public init() {}
     }
@@ -106,7 +114,7 @@ public final class OverlayWindowController {
         sheetModel.content = .hidden
         sheetModel.query = nil
         sheetModel.queryImage = nil
-        sheetModel.translateChipLabel = nil
+        sheetModel.modeChip = nil
         sheetModel.currentPageURL = nil
         sheetModel.onQuerySubmit = { [weak self] text in
             guard let self else { return }
@@ -131,7 +139,11 @@ public final class OverlayWindowController {
                                        self?.toolbarState.targetCode = code
                                        self?.onPickTranslationTarget(code)
                                    },
-                                   onToggleTranslateSelection: callbacks.onToggleTranslateSelection)
+                                   onToggleTranslateSelection: callbacks.onToggleTranslateSelection,
+                                   onToggleVisualizeSelection: callbacks.onToggleVisualizeSelection,
+                                   onTranslateImage: callbacks.onTranslateImage,
+                                   onVisualizeImage: callbacks.onVisualizeImage,
+                                   onSubmitImageEdit: callbacks.onSubmitImageEdit)
         let window = ensureWindow()
         if let hostingView {
             hostingView.rootView = root
@@ -170,7 +182,7 @@ public final class OverlayWindowController {
 
     /// 驱动结果面板(query/queryImage = 药丸里的查询上下文:文字或图搜缩略图)。
     public func showResult(_ content: ResultContent, query: String?, queryImage: CGImage? = nil,
-                           translateChip: String? = nil) {
+                           chip: QueryModeChip? = nil) {
         guard isPresenting else { return }
         // 自动换边:选区在右半屏 → 面板停靠左侧(手动拖过则尊重手动位置)
         if !sheetModel.userMovedPanel,
@@ -182,8 +194,9 @@ public final class OverlayWindowController {
         sheetModel.content = content
         sheetModel.query = query
         sheetModel.queryImage = queryImage
-        sheetModel.translateChipLabel = translateChip // 默认 nil:任何新搜索都退出翻译模式
+        sheetModel.modeChip = chip // 默认 nil:任何新普通搜索都退出 prompt 模式
     }
+
 
     /// 关闭覆盖层。幂等;内部不得再回调 onDismiss(防递归)。
     public func dismiss() {

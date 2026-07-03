@@ -69,6 +69,29 @@ public struct LensUploadPayload {
     }
 }
 
+/// prompt 包装型查询的模式(F10 选区翻译 / F15 可视化与图片编辑):
+/// 真实查询 = prompt 包装 + Google AI Mode,药丸显示用户可编辑的原文/指令,
+/// 提交时由 coordinator 按模式重新包装;新普通搜索一律退出模式。
+public enum QueryPromptMode: Equatable, Sendable {
+    case translate
+    case visualize
+    case editImage
+}
+
+/// 结果面板药丸里的模式 chip(nil = 普通搜索,无 chip)。
+public struct QueryModeChip: Equatable, Sendable {
+    public let mode: QueryPromptMode
+    /// SF Symbol 名。
+    public let icon: String
+    public let label: String
+
+    public init(mode: QueryPromptMode, icon: String, label: String) {
+        self.mode = mode
+        self.icon = icon
+        self.label = label
+    }
+}
+
 /// 底部结果面板内容状态(ui-style §4.6)。
 public enum ResultContent {
     case hidden
