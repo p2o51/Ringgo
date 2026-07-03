@@ -260,12 +260,22 @@ public final class OverlayWindowController {
                     return
                 }
                 if event.modifierFlags.intersection(.deviceIndependentFlagsMask) == .command,
-                   event.charactersIgnoringModifiers?.lowercased() == "c",
-                   let text = self.viewModel.selectedText {
-                    let pasteboard = NSPasteboard.general
-                    pasteboard.clearContents()
-                    pasteboard.setString(text, forType: .string)
-                    consume = true
+                   event.charactersIgnoringModifiers?.lowercased() == "c" {
+                    // 面板/工具条输入框聚焦时放行系统复制,不劫持
+                    if self.window?.firstResponder is NSTextView {
+                        return
+                    }
+                    if let text = self.viewModel.selectedText {
+                        let pasteboard = NSPasteboard.general
+                        pasteboard.clearContents()
+                        pasteboard.setString(text, forType: .string)
+                        Haptics.confirm()
+                        consume = true
+                    } else if let rect = self.viewModel.rectSelection {
+                        // 图片选区:coordinator 按坐标真源裁剪写剪贴板(v2,复制按钮已移除)
+                        self.callbacks.onCopyImage(rect)
+                        consume = true
+                    }
                 }
             }
             return consume ? nil : event

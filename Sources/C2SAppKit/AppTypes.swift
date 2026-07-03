@@ -26,7 +26,7 @@ public struct TriggerConfig: Equatable, Sendable {
 
     public init(keyCode: UInt32 = 1,
                 carbonModifiers: UInt32 = 768,
-                chargeEnabled: Bool = true,
+                chargeEnabled: Bool = false,
                 chargeThresholdMs: Int = 250,
                 doubleShiftEnabled: Bool = false) {
         self.keyCode = keyCode

@@ -37,7 +37,8 @@ public final class SettingsStore: ObservableObject {
     @Published public var hotkeyModifiers: UInt32 = 768 {    // cmd | shift(Carbon)
         didSet { persist(Int(hotkeyModifiers), forKey: Keys.hotkeyModifiers) }
     }
-    @Published public var chargeEnabled: Bool = true {
+    // 2026-07-03 默认改关:普通 ⌘⇧ 前缀快捷键按慢即误触发,opt-in 更合理
+    @Published public var chargeEnabled: Bool = false {
         didSet { persist(chargeEnabled, forKey: Keys.chargeEnabled) }
     }
     @Published public var doubleShiftEnabled: Bool = false { // 默认关:开启才申请 AX 权限

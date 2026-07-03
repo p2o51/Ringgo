@@ -38,10 +38,9 @@ struct SelectionMiniToolbar: View {
     // MARK: - Body
 
     var body: some View {
+        // v2(2026-07-03):复制按钮移除(⌘C 直接复制文字/图片),只剩翻译
         HStack(spacing: 0) {
-            toolbarButton(icon: "doc.on.doc", title: "复制", action: onCopy)
             if kind == .text, let onTranslate {
-                divider
                 toolbarButton(icon: "translate", title: "翻译", action: onTranslate)
             }
         }
@@ -104,9 +103,9 @@ struct SelectionMiniToolbar: View {
         let width: CGFloat
         switch kind {
         case .text:
-            width = Metrics.paddingH * 2 + buttonWidth * 2 + Metrics.hairline
+            width = Metrics.paddingH * 2 + buttonWidth // v2:仅「翻译」一个按钮
         case .image:
-            width = Metrics.paddingH * 2 + buttonWidth
+            width = 0 // v2:图片选区无迷你条(复制走 ⌘C)
         }
         return CGSize(width: width, height: Metrics.height)
     }

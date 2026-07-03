@@ -263,29 +263,17 @@ struct OverlayRootView: View {
 
     @ViewBuilder private func miniToolbar(size: CGSize) -> some View {
         if case .hidden = sheetModel.content {} // 面板显隐不影响迷你条,仅为读依赖
-        if let kind = viewModel.miniToolbarKind, let bounds = viewModel.selectionBounds {
-            let toolbarSize = SelectionMiniToolbar.estimatedSize(for: kind)
+        // v2:仅文字选区显示(单「翻译」按钮);复制统一走 ⌘C(文字/图片皆可)
+        if viewModel.miniToolbarKind == .text, let bounds = viewModel.selectionBounds {
+            let toolbarSize = SelectionMiniToolbar.estimatedSize(for: .text)
             let origin = SelectionMiniToolbar.placement(selection: bounds, canvas: size, size: toolbarSize)
             SelectionMiniToolbar(
-                kind: kind,
+                kind: .text,
                 reduceEffects: reduceEffects || reduceMotion,
-                onCopy: { copySelection(kind: kind, bounds: bounds) },
-                onTranslate: kind == .text ? { translateSelection() } : nil)
+                onCopy: {},
+                onTranslate: { translateSelection() })
                 .offset(x: origin.x, y: origin.y)
-                .id("\(kind)-\(Int(bounds.minX))-\(Int(bounds.minY))-\(Int(bounds.width))")
-        }
-    }
-
-    private func copySelection(kind: MiniToolbarKind, bounds: CGRect) {
-        switch kind {
-        case .text:
-            guard let text = viewModel.selectedText else { return }
-            let pasteboard = NSPasteboard.general
-            pasteboard.clearContents()
-            pasteboard.setString(text, forType: .string)
-            Haptics.confirm()
-        case .image:
-            onCopyImage(bounds) // coordinator 裁剪写剪贴板 + 触觉
+                .id("text-\(Int(bounds.minX))-\(Int(bounds.minY))-\(Int(bounds.width))")
         }
     }
 
@@ -314,7 +302,7 @@ struct OverlayRootView: View {
                     NSApp.sendAction(Selector(("startDictation:")), to: nil, from: nil)
                 })
                 .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottom)
-                .padding(.bottom, 20)
+                .padding(.bottom, 48) // 上提(实测 20 太贴底)
                 .transition(.opacity.combined(with: .move(edge: .bottom)))
         }
     }
