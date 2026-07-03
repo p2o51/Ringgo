@@ -17,6 +17,8 @@ final class ContextMenuWebView: WKWebView {
                               action: #selector(openContextLinkInBrowser(_:)),
                               keyEquivalent: "")
         item.target = self
+        item.image = NSImage(systemSymbolName: "arrow.up.forward.app",
+                             accessibilityDescription: "在默认浏览器中打开")
         // 插在系统「打开链接」之后;找不到就置顶
         let anchor = menu.items.firstIndex {
             $0.identifier?.rawValue == "WKMenuItemIdentifierOpenLink"
