@@ -49,12 +49,21 @@ struct SelectionMiniToolbar: View {
         }
         .padding(.horizontal, Metrics.paddingH)
         .frame(height: Metrics.height)
-        .toolbarGlass(in: Capsule())
+        // 高亮 = 整个胶囊变 accent 实底(选中态语义);平时 = Liquid Glass。
+        // 不在玻璃胶囊内部再塞高亮小胶囊 —— 双层药丸难看(2026-07-03 实测)。
+        .background {
+            if translateActive {
+                Capsule().fill(Color.accentColor)
+            }
+        }
+        .modifier(GlassWhenInactive(active: translateActive))
         .overlay(
-            Capsule().strokeBorder(Color(nsColor: .separatorColor),
-                                   lineWidth: Metrics.hairline)
+            Capsule().strokeBorder(
+                translateActive ? Color.white.opacity(0.25) : Color(nsColor: .separatorColor),
+                lineWidth: Metrics.hairline)
         )
         .shadow(color: .black.opacity(0.16), radius: 5, y: 2)
+        .animation(motionReduced ? nil : .easeOut(duration: 0.12), value: translateActive)
         .scaleEffect(motionReduced || appeared ? 1 : 0.92)
         .opacity(appeared ? 1 : 0)
         .onAppear {
@@ -83,7 +92,6 @@ struct SelectionMiniToolbar: View {
             .foregroundStyle(highlighted ? AnyShapeStyle(Color.white) : AnyShapeStyle(.primary))
             .padding(.horizontal, Metrics.buttonPaddingH)
             .frame(maxHeight: .infinity)
-            .background(highlighted ? Color.accentColor : Color.clear, in: Capsule())
             .contentShape(Rectangle()) // 整个按钮区域可点,不只文字
         }
         .buttonStyle(.plain)
@@ -173,5 +181,19 @@ struct SelectionMiniToolbar: View {
         // 兜底:全屏级大选区,无法不相交;保证不出屏,贴选区右下角内侧。
         return CGPoint(x: clampedX(selection.maxX - size.width - margin),
                        y: clampedY(selection.maxY - size.height - margin))
+    }
+}
+
+
+/// 非激活时才上玻璃背板(激活时是 accent 实底,叠玻璃会发灰)。
+private struct GlassWhenInactive: ViewModifier {
+    let active: Bool
+
+    func body(content: Content) -> some View {
+        if active {
+            content
+        } else {
+            content.toolbarGlass(in: Capsule())
+        }
     }
 }
