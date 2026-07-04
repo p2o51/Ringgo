@@ -25,6 +25,64 @@ public actor OCRService {
         return words
     }
 
+    /// 定向补刀 OCR(F17「改选文字」):整屏识别对小字/低对比字可能漏——
+    /// Vision 对大图内部降采样;毛玻璃(如 Finder 侧栏)后面的背景一变
+    /// (实测:台前调度侧条显隐),文字对比度跟着变,整屏识别时灵时不灵。
+    /// 把框选区域裁出来、小图放大后单独识别,词框映射回覆盖层全屏坐标。
+    /// 不进整屏缓存;id 从 0 起,由调用方经 OCRWordMerger 并表重排。
+    ///
+    /// nonisolated:不碰 actor 状态(缓存),不得排在整屏识别后面——
+    /// 补刀最需要的时机恰是整屏 OCR 还在飞的时候,排队会让 chip 转圈数秒。
+    nonisolated public func words(in image: CGImage,
+                                  context: DisplayContext,
+                                  focusOn overlayRect: CGRect) async -> [OCRWord] {
+        // 裁剪区向外扩 16pt:框边缘切过的词识别成整词而不是半截
+        // (半词与整屏全词框 IoU ≤ 0.5,去重不掉会污染词表);
+        // 词框保留真实坐标,「选框内词」仍由调用方按词中心判定。
+        let padded = overlayRect.insetBy(dx: -16, dy: -16)
+        let px = context.pixelRect(fromOverlay: padded)
+        guard !px.isNull, px.width >= 4, px.height >= 4,
+              let crop = image.cropping(to: px) else { return [] }
+
+        // 小裁剪区放大到 ~512px 档(上限 4×,高质量插值):Vision 对小图里的
+        // 小字/低对比字命中率显著更高;放大只改 pixelSize,点坐标不受影响。
+        let minDimension = CGFloat(min(crop.width, crop.height))
+        let upscale = min(4, max(1, (512 / minDimension).rounded(.up)))
+        let recognitionImage = upscale > 1 ? Self.scaled(crop, by: upscale) ?? crop : crop
+
+        // 裁剪图的「迷你上下文」:点尺寸按整屏换算比缩回,recognize 输出的
+        // 覆盖层坐标即为「相对裁剪区左上角」,再整体平移回全屏。
+        let cropContext = DisplayContext(
+            displayID: context.displayID,
+            screenFrame: .zero,
+            pointSize: CGSize(width: px.width / context.effectiveScaleX,
+                              height: px.height / context.effectiveScaleY),
+            pixelSize: CGSize(width: recognitionImage.width, height: recognitionImage.height),
+            scale: context.scale
+        )
+        let dx = px.minX / context.effectiveScaleX
+        let dy = px.minY / context.effectiveScaleY
+        return Self.recognize(image: recognitionImage, context: cropContext).map {
+            OCRWord(id: $0.id, text: $0.text,
+                    rect: $0.rect.offsetBy(dx: dx, dy: dy), block: $0.block)
+        }
+    }
+
+    /// 高质量整数倍放大(补刀 OCR 用;失败返回 nil,调用方退回原图)。
+    private static func scaled(_ image: CGImage, by factor: CGFloat) -> CGImage? {
+        let width = Int(CGFloat(image.width) * factor)
+        let height = Int(CGFloat(image.height) * factor)
+        guard width > 0, height > 0,
+              let ctx = CGContext(data: nil, width: width, height: height,
+                                  bitsPerComponent: 8, bytesPerRow: 0,
+                                  space: CGColorSpaceCreateDeviceRGB(),
+                                  bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue)
+        else { return nil }
+        ctx.interpolationQuality = .high
+        ctx.draw(image, in: CGRect(x: 0, y: 0, width: width, height: height))
+        return ctx.makeImage()
+    }
+
     // MARK: - 识别(纯函数)
 
     private static func recognize(image: CGImage, context: DisplayContext) -> [OCRWord] {

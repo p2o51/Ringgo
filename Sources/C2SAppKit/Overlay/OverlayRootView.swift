@@ -301,9 +301,9 @@ struct OverlayRootView: View {
                     editExpanded: $imageEditExpanded,
                     onEditSubmit: { onSubmitImageEdit($0) },
                     onSwitchToText: {
-                        let switched = viewModel.switchSelectionToText()
-                        if !switched { Haptics.align() } // 「没有可选的」轻提示
-                        return switched
+                        let outcome = await viewModel.switchSelectionToText()
+                        if outcome == .noText { Haptics.align() } // 「没有可选的」轻提示
+                        return outcome
                     })
                     .offset(x: origin.x, y: origin.y)
                     // 展开/收起时宽度与摆位一起动(动画在 offset 之后才盖得到摆位;减弱动态直切)

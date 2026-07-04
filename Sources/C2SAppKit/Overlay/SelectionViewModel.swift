@@ -1,6 +1,15 @@
 import SwiftUI
 import C2SCore
 
+/// 「改选文字」的结果:工具条据此分级反馈——
+/// noText 才摇头 + 气泡;superseded(选区已变/被取消/被别的动作顶掉)完全静默,
+/// 绝不发「未识别到文字」语义的触觉或视觉(F17 审查 #8)。
+enum TextSwitchOutcome: Equatable {
+    case switched
+    case noText
+    case superseded
+}
+
 /// 选择交互状态机(features F4/F6):笔刷(BrushSession 增量)/轻点选词/
 /// 手柄扩展(同 block 链)/可调矩形。持有 SelectionEngine,发布高亮与选区。
 @MainActor
@@ -35,6 +44,9 @@ final class SelectionViewModel: ObservableObject {
     var onTextSearch: (String) -> Void = { _ in }
     var onImageSearch: (CGRect) -> Void = { _ in }
     var onDismiss: () -> Void = {}
+    /// 「改选文字」框内无已知词时的定向补刀 OCR(裁剪选区重识别,
+    /// 返回覆盖层坐标词框;空 = 确实没字)。OverlayWindowController 接线。
+    var onFocusedOCR: ((CGRect) async -> [OCRWord])?
 
     // MARK: - 内部
 
@@ -67,6 +79,9 @@ final class SelectionViewModel: ObservableObject {
         case brush([CGPoint])
     }
     private var pendingGesture: PendingGesture?
+    /// 定向补刀 OCR 认出的额外词(原始坐标):整屏词表晚到时必须重新并入,
+    /// 否则慢机器上「改选文字」刚成功、整屏 OCR 一到就把选区连词一起冲掉。
+    private var focusedExtras: [OCRWord] = []
     /// 触觉刻度节流(跨词哒哒感,≥60ms 一次;触觉只在手指仍按住时可感)。
     private var lastHapticTick = Date.distantPast
     private var lastBrushCount = 0
@@ -87,21 +102,33 @@ final class SelectionViewModel: ObservableObject {
         session = nil
         dragMode = nil
         pendingGesture = nil
+        focusedExtras = []
     }
 
-    /// OCR 词框到达 → 重建引擎;若正在笔刷中,在新引擎上重放完整 path(= 全量重算)。
+    /// OCR 词框到达 → 重建引擎(补刀词并入,见 focusedExtras);
+    /// 笔刷中 → 新引擎上重放完整 path;文字选中 → 按词框映射进新词表
+    /// (映射不全才清,防止整屏 OCR 晚到冲掉刚定格的选区)。
     func updateWords(_ words: [OCRWord]) {
-        let newEngine = SelectionEngine(words: words)
+        let table = focusedExtras.isEmpty
+            ? words
+            : OCRWordMerger.merge(base: words, extra: focusedExtras)
+        let newEngine = SelectionEngine(words: table)
         engine = newEngine
         switch state {
         case .brushing:
             let s = BrushSession(engine: newEngine)
             highlightedWords = s.append(brushPoints)
             session = s
-        case .textSelected:
-            // 旧选区的词 id 随旧引擎失效,清掉防串
+        case .textSelected(let selection, _, _):
+            // 旧词 id 随旧引擎失效;按词框找回等价词,原样保住选区(不重发搜索)
             if case .handle = dragMode { dragMode = nil }
-            clearSelection()
+            if let mapped = OCRWordMerger.matching(selection, in: table),
+               let first = mapped.first, let last = mapped.last {
+                state = .textSelected(words: mapped, anchorID: first.id, endID: last.id)
+                highlightedWords = mapped
+            } else {
+                clearSelection()
+            }
         case .rectSelection(let rect):
             // OCR 完成前落地的手势按原始意图定夺;已手动调整过矩形(pending 已清)则不再动
             resolvePendingGesture(fallbackRect: rect, engine: newEngine)
@@ -421,11 +448,41 @@ final class SelectionViewModel: ObservableObject {
     }
 
     /// 图片框 → 文字选区:框内的词(词中心落框内,阅读序)整体选中并发文字搜索。
-    /// 框内没词(或 OCR 未完成)返回 false,由调用方播放「无文字」反馈,选区不动。
+    /// 框内没有已知词 → **定向补刀 OCR**(F17):整屏识别对小字/低对比字可能漏,
+    /// 裁剪选区重识别一遍再试;确实没有 → .noText(调用方摇头反馈,选区不动);
+    /// await 期间选区变了/任务被取消(用户转去编辑等) → .superseded(完全静默)。
+    ///
+    /// 纪律(F17 审查):**绝不预清 pendingGesture**——OCR 未完成时轻点/空刷出的
+    /// 矩形,其图搜路由完全寄存在 pendingGesture 上(handleTap/finishBrush 在
+    /// engine==nil 时不 route);补刀失败必须让整屏 OCR 到达后照常兜底路由,
+    /// 否则留下一个永远不发搜索的死框。切换成功时 applyTextSelection 才清。
     @discardableResult
-    func switchSelectionToText() -> Bool {
-        guard case .rectSelection(let rect) = state, let engine else { return false }
-        let selection = engine.words(inRect: rect)
+    func switchSelectionToText() async -> TextSwitchOutcome {
+        guard case .rectSelection(let rect) = state else { return .superseded }
+        if let engine, applyTextSelection(engine.words(inRect: rect)) { return .switched }
+
+        guard let onFocusedOCR else { return .noText }
+        let extra = await onFocusedOCR(rect)
+        // 任务被取消(工具条:用户点了编辑/翻译/可视化,意图已变)→ 静默作废
+        guard !Task.isCancelled else { return .superseded }
+        // await 期间用户重拖/调整/清除了选区 → 作废,绝不动现状
+        guard case .rectSelection(let current) = state, current == rect else { return .superseded }
+        // 整屏词表可能已在 await 期间到达:先用真词表重查,命中就不需要补刀词
+        // (避免同一段文字整屏/补刀两套框并存,分词不一致时去重不掉,F17 审查 #1)
+        if let engine, applyTextSelection(engine.words(inRect: rect)) { return .switched }
+        guard !extra.isEmpty else { return .noText }
+        // 改选文字就此落地:此刻才作废兜底手势,防下面 updateWords 触发
+        // resolvePendingGesture 按旧轻点意图抢先改写选区/重复发搜索
+        pendingGesture = nil
+        // 记住补刀词:整屏词表(可能还在飞)晚到时 updateWords 会重新并入
+        focusedExtras.append(contentsOf: extra)
+        updateWords(engine?.words ?? [])
+        guard let engine else { return .noText }
+        return applyTextSelection(engine.words(inRect: rect)) ? .switched : .noText
+    }
+
+    /// 词表 → 文字选中态(空表返回 false 不动状态)。
+    private func applyTextSelection(_ selection: [OCRWord]) -> Bool {
         guard let first = selection.first, let last = selection.last else { return false }
         pendingGesture = nil
         state = .textSelected(words: selection, anchorID: first.id, endID: last.id)

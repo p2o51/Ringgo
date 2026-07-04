@@ -58,6 +58,9 @@ public final class OverlayWindowController {
         public var onVisualizeImage: () -> Void = {}
         /// 迷你工具条「编辑」指令提交(图片选区:内联输入框回车,nano banana 编辑)。
         public var onSubmitImageEdit: (String) -> Void = { _ in }
+        /// 「改选文字」框内无已知词时的定向补刀 OCR(coordinator 裁剪选区重识别;
+        /// 返回覆盖层坐标词框,空 = 确实没字)。
+        public var onFocusedOCR: (CGRect) async -> [OCRWord] = { _ in [] }
         public var onDismiss: () -> Void = {}
         public init() {}
     }
@@ -111,6 +114,7 @@ public final class OverlayWindowController {
         viewModel.onTextSearch = callbacks.onTextSearch
         viewModel.onImageSearch = callbacks.onImageSearch
         viewModel.onDismiss = callbacks.onDismiss
+        viewModel.onFocusedOCR = callbacks.onFocusedOCR
         sheetModel.content = .hidden
         sheetModel.query = nil
         sheetModel.queryImage = nil

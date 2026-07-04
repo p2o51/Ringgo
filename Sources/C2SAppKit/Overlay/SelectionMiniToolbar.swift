@@ -25,9 +25,10 @@ struct SelectionMiniToolbar: View {
     /// 「改选」chip(独立小胶囊,与动作胶囊隔开——语义是切换选区类型,不是操作):
     /// .text → 「改选图片」(图上文字被误选时改回框选);nil = 不显示。
     var onSwitchToImage: (() -> Void)?
-    /// .image → 「改选文字」;返回 false = 框内没有文字,chip 原地摇头 +
-    /// 浮出「未识别到文字」说明(选区不动)。nil = 不显示。
-    var onSwitchToText: (() -> Bool)?
+    /// .image → 「改选文字」(async:框内无已知词时会裁剪选区补刀 OCR)。
+    /// .noText = 确实没有文字,chip 原地摇头 + 浮出「未识别到文字」说明
+    /// (选区不动);.superseded = 结果作废,完全静默。nil = 不显示。
+    var onSwitchToText: (() async -> TextSwitchOutcome)?
 
     /// 指令草稿(提交后保留,再次展开可微调重发)。
     @State private var editText = ""
@@ -41,6 +42,11 @@ struct SelectionMiniToolbar: View {
     /// 「未识别到文字」浮出说明(1.6s 后自动隐去)。
     @State private var noTextCaptionVisible = false
     @State private var captionTask: Task<Void, Never>?
+    /// 「改选文字」进行中(补刀 OCR 在飞):图标位转圈,防重复点击。
+    @State private var switchingToText = false
+    /// 在飞的切换任务:用户转去编辑/翻译/可视化(意图已变)或工具条卸载时取消,
+    /// 晚到的结果经 VM 的 Task.isCancelled 检查静默作废。
+    @State private var switchTask: Task<Void, Never>?
 
     // MARK: - 尺寸常量(estimatedSize 与 body 共用,保持一致)
 
@@ -86,7 +92,18 @@ struct SelectionMiniToolbar: View {
                 : .spring(response: 0.25, dampingFraction: 0.8)
             withAnimation(animation) { appeared = true }
         }
-        .onDisappear { captionTask?.cancel() }
+        .onDisappear {
+            switchTask?.cancel()
+            captionTask?.cancel()
+        }
+        // 展开编辑 = 意图转向图片编辑:取消在飞的「改选文字」,并收掉可能
+        // 残留的失败气泡(chip 隐藏期间它无处渲染,重挂载时会凭空闪现)
+        .onChange(of: editExpanded.wrappedValue) { _, expanded in
+            guard expanded else { return }
+            switchTask?.cancel()
+            captionTask?.cancel()
+            noTextCaptionVisible = false
+        }
         .accessibilityElement(children: .contain)
         .accessibilityLabel("选区工具条")
     }
@@ -115,19 +132,23 @@ struct SelectionMiniToolbar: View {
                     divider
                     editField
                 } else {
+                    // 图片动作 = 用户意图明确留在图片:顶掉在飞的「改选文字」,
+                    // 防补刀晚到把工具条翻成文字面、清掉 Lens 挂起/编辑草稿
                     if let onTranslate {
                         toolbarButton(icon: "translate", title: "翻译",
-                                      action: onTranslate, highlighted: activeMode == .translate)
+                                      action: supersedingSwitch(onTranslate),
+                                      highlighted: activeMode == .translate)
                     }
                     if onTranslate != nil, onVisualize != nil { divider }
                     if let onVisualize {
                         toolbarButton(icon: "chart.bar.xaxis", title: "可视化",
-                                      action: onVisualize, highlighted: activeMode == .visualize)
+                                      action: supersedingSwitch(onVisualize),
+                                      highlighted: activeMode == .visualize)
                     }
                     if onVisualize != nil, onEditSubmit != nil { divider }
                     if onEditSubmit != nil {
                         toolbarButton(icon: "wand.and.stars", title: "编辑",
-                                      action: { editExpanded.wrappedValue = true },
+                                      action: supersedingSwitch { editExpanded.wrappedValue = true },
                                       highlighted: activeMode == .editImage)
                     }
                 }
@@ -162,8 +183,15 @@ struct SelectionMiniToolbar: View {
         if let config {
             Button(action: config.action) {
                 HStack(spacing: Metrics.iconTextSpacing) {
-                    Image(systemName: config.icon)
-                        .font(.system(size: Metrics.fontSize, weight: .medium))
+                    if switchingToText {
+                        ProgressView()
+                            .controlSize(.small)
+                            .scaleEffect(0.72)
+                            .frame(width: Metrics.fontSize + 2, height: Metrics.fontSize + 2)
+                    } else {
+                        Image(systemName: config.icon)
+                            .font(.system(size: Metrics.fontSize, weight: .medium))
+                    }
                     Text(config.title)
                         .font(.system(size: Metrics.fontSize, weight: .medium))
                 }
@@ -187,18 +215,33 @@ struct SelectionMiniToolbar: View {
         }
     }
 
-    /// 「改选文字」点击:切换失败(框内无文字)→ 摇头 + 浮出说明,选区不动。
-    private func switchToTextTapped() {
-        guard let onSwitchToText, !onSwitchToText() else { return }
-        if !motionReduced {
-            withAnimation(.easeInOut(duration: 0.45)) { shakePhase += 1 }
+    /// 包装图片动作:先取消在飞的「改选文字」再执行(意图被新动作顶掉)。
+    private func supersedingSwitch(_ action: @escaping () -> Void) -> () -> Void {
+        {
+            switchTask?.cancel()
+            action()
         }
-        captionTask?.cancel()
-        withAnimation(.easeOut(duration: 0.15)) { noTextCaptionVisible = true }
-        captionTask = Task { @MainActor in
-            try? await Task.sleep(nanoseconds: 1_600_000_000)
-            guard !Task.isCancelled else { return }
-            withAnimation(.easeOut(duration: 0.25)) { noTextCaptionVisible = false }
+    }
+
+    /// 「改选文字」点击:框内无已知词时后台补刀 OCR(图标位转圈);
+    /// .noText(确实没字)→ 摇头 + 浮出说明,选区不动;.superseded → 完全静默。
+    private func switchToTextTapped() {
+        guard let onSwitchToText, !switchingToText else { return }
+        switchingToText = true
+        switchTask = Task { @MainActor in
+            let outcome = await onSwitchToText()
+            switchingToText = false
+            guard outcome == .noText else { return }
+            if !motionReduced {
+                withAnimation(.easeInOut(duration: 0.45)) { shakePhase += 1 }
+            }
+            captionTask?.cancel()
+            withAnimation(.easeOut(duration: 0.15)) { noTextCaptionVisible = true }
+            captionTask = Task { @MainActor in
+                try? await Task.sleep(nanoseconds: 1_600_000_000)
+                guard !Task.isCancelled else { return }
+                withAnimation(.easeOut(duration: 0.25)) { noTextCaptionVisible = false }
+            }
         }
     }
 

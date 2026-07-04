@@ -205,6 +205,9 @@ public final class AppCoordinator: ObservableObject {
         cb.onTranslateImage = { [weak self] in self?.translateImageSelection() }
         cb.onVisualizeImage = { [weak self] in self?.visualizeImageSelection() }
         cb.onSubmitImageEdit = { [weak self] text in self?.performImageEdit(instruction: text) }
+        cb.onFocusedOCR = { [weak self] rect in
+            await self?.focusedOCR(overlayRect: rect) ?? []
+        }
         cb.onLensBlocked = { [weak self] reason in self?.handleLensBlocked(reason) }
         cb.onLensFailure = { [weak self] reason in self?.handleLensFailure(reason) }
         cb.onDismiss = { [weak self] in self?.dismissOverlay() }
@@ -227,6 +230,12 @@ public final class AppCoordinator: ObservableObject {
             guard !Task.isCancelled else { return }
             await MainActor.run { overlay.updateWords(words) }
         }
+    }
+
+    /// 「改选文字」补刀:裁剪当前截图的选区重跑 OCR(F17,小框小字整屏识别漏)。
+    private func focusedOCR(overlayRect: CGRect) async -> [OCRWord] {
+        guard let cap = currentCapture else { return [] }
+        return await ocr.words(in: cap.image, context: cap.context, focusOn: overlayRect)
     }
 
     private func dismissOverlay() {
