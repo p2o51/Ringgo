@@ -64,6 +64,7 @@
 - Apple Vision `VNRecognizeTextRequest`,**单级 `.accurate`**(删掉原项目"快扫+精扫重识别"的二次开销),`automaticallyDetectsLanguage=true`,`usesLanguageCorrection=true`,可给 `recognitionLanguages` 提示(中英日韩等,已验证支持 30 语言含中文)。
 - **词级框**:对每个 observation 取 `topCandidates(1)`,`enumerateSubstrings(.byWords)` + `recognizedText.boundingBox(for:)` 得每词归一化框(已验证)。中文按 ~2 字块切,选择/回填逻辑要按实际 char box、不假设"词"。
 - 抓屏后在 **detached Task** 里全量算一次词框(别在主线程),得 `[SelectableWord]` 发布给覆盖层;仅按同一 CGImage 实例缓存,避免稀疏采样把同尺寸的新截图误判成旧图。
+- **分块识别(F18,2026-07-04)**:整屏单 pass 时 Vision 对大图内部降采样,小字在部分机器/系统上**补丁式漏词**(朋友实测:同一 Finder 侧栏同字号,「图片/影片」认出、「桌面/文稿/下载」认不出,笔刷选区中间开洞;~~对比度/台前调度理论~~ 被该截图推翻)。大图切 ≤2048px 瓦片(重叠 128px 防切词)**并发**识别(≤3 路在飞),跨瓦片词级去重(IoU>0.6 判同,保留所在行更完整者)后全局聚 block;小图仍单 pass。骑缝长行被切成两段行,SelectionEngine 按 midY 聚行时自动合回,阅读链/选择语义不受影响。补刀 OCR(F17)沿用单 pass 路径。
 - 选区后**全是内存几何裁词**(纯 O(词) 相交),查询串近乎零延迟。
 
 ### F4 · 选择(核心;规则 v4,2026-07-03 定稿)

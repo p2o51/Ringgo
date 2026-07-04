@@ -57,7 +57,7 @@ public enum OCRWordMerger {
     }
 
     /// 交并比(IoU);任一面积为零返回 0。
-    static func iou(_ a: CGRect, _ b: CGRect) -> CGFloat {
+    public static func iou(_ a: CGRect, _ b: CGRect) -> CGFloat {
         let inter = a.intersection(b)
         guard !inter.isNull, inter.width > 0, inter.height > 0 else { return 0 }
         let interArea = inter.width * inter.height
