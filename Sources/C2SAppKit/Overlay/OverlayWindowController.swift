@@ -280,8 +280,11 @@ public final class OverlayWindowController {
                 }
                 if event.modifierFlags.intersection(.deviceIndependentFlagsMask) == .command,
                    event.charactersIgnoringModifiers?.lowercased() == "c" {
-                    // 面板/工具条输入框聚焦时放行系统复制,不劫持
-                    if self.window?.firstResponder is NSTextView {
+                    // 输入框聚焦**且确有选中内容**才放行系统复制(用户在复制输入框文本)。
+                    // 只判聚焦不行:底部提问框呼出即聚焦、常驻 firstResponder,
+                    // 空选择也放行会把「复制选区文字」整个吞掉(⌘C 落进空输入框,毫无动静)。
+                    if let editor = self.window?.firstResponder as? NSTextView,
+                       editor.selectedRange().length > 0 {
                         return
                     }
                     if let text = self.viewModel.selectedText {
