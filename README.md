@@ -27,12 +27,12 @@
 - **选区 = 可调矩形**,不做多边形/非矩形蒙版;**矩形一律图搜(v3)**——框一旦出现,不管怎么调整都是搜图,框里有字交给 Lens 自己认,绝不中途翻转成文字搜索(想搜文字用笔刷划词)。
 - **选词 = 参与区域 × 锚点区间填充(v4,2026-07-03 定稿,Android 同款)**:参与区域 = 触碰词所在 block ∪ 笔画横向带扫过的 block(带只圈栏、不裁词);选区 = 参与区域阅读链上 [首触碰…末触碰] **整段区间**(首行到行尾、中间行整行、末行从行首)。侧栏斜划=整行填充不串正文;表格对角线=整表;~~v2 block 隔离~~(撕碎表格)、~~v3 纯全局区间~~(三栏串选)、~~v3.1 按词裁带~~(裁掉行尾成"对角线走廊")先后被实测否定。触发/退出:热键=开关;轻点永不退出(点空白=新框)。测试真源:`Tests/C2SCoreTests/SelectionEngineTests.swift`。
 - **坐标 = 单一 `DisplayContext`**(鼠标所在屏 `backingScaleFactor`;废弃写死 ×2 与 `displays.first`/`NSScreen.main` 双源;背景用显式 frame 而非 `.aspectRatio(.fill)`)。
-- **触发**:Carbon 热键(默认 ⌘⇧S)+ 蓄力唤起(按住 ⌘⇧ ~250ms,免辅助权限);双击 Shift 默认关。**三指双击触控板**=可选增强(私有 MultitouchSupport、只读帧零权限、已实测 macOS 26 可用),失效降级到 `c2s://capture` + BTT/Jitouch。详见 features.md §F1。
+- **触发**:Carbon 热键(默认 ⌘⇧S)+ 蓄力唤起(按住 ⌘⇧ ~250ms,免辅助权限);双击 Shift 默认关。**三指双击触控板**已作为 Developer ID 版实验开关落地:运行时加载私有 MultitouchSupport、只读帧零权限、失败自动降级到热键/菜单栏。详见 features.md §F1。
 - **结果(v3,2026-07-03)**:**手机比例(390pt,≈9:19.5)独立悬浮面板**,默认停靠右侧、抓手可拖动、× 关闭;WKWebView + 骨架/错误态。不是锚定 popover;底部上滑面板因全宽利用率低被否。
 - **图搜(v2,2026-07-02 实测改版)**:结果页与**上传会话绑定**(跨会话="Image not found"),且风控网络下匿名客户端一律 403 → **上传搬进面板 WKWebView**:自动提交 multipart 表单做顶层 POST 导航(免 CORS),WebView 跟随 303 落结果页;dataStore 持久化,403 → 错误卡「重试 / 登录 Google」。URLSession 直传+拦 302 方案废弃。
 - **物体吸附**:`VNGenerateForegroundInstanceMask`/显著性/矩形检测,轻点吸附到含点最小框。
-- **翻译**:Apple Translation 框架(本地免 Key),待实现。
-- **动画**:四点渐变(AE 4-color)+ 四点移动,取代原项目 8 光斑公转。
+- **翻译**:选区/图片走 Google AI Mode;整屏走 Apple Translation 框架(本地免 Key)。
+- **动画**:四点渐变(AE 4-color)+ 涟漪已落地,取代原项目 8 光斑公转。
 
 ---
 
@@ -60,12 +60,20 @@ export DEVELOPER_DIR=/Applications/Xcode.app/Contents/Developer
 
 swift build                 # 编译
 swift test                  # 全部单测(SelectionEngine 对抗场景 / 坐标 / multipart / OCR 冒烟)
-Scripts/build-app.sh        # 组装 build/C2S.app(含 Info.plist,稳定身份的本地 ad-hoc 签名)
-open build/C2S.app          # 运行(菜单栏代理;首次抓屏会申请屏幕录制权限)
+Scripts/build-app.sh        # 组装 build/Ringgo.app(含 Info.plist,稳定身份的本地 ad-hoc 签名)
+open build/Ringgo.app       # 运行(菜单栏代理;首次抓屏会申请屏幕录制权限)
 ```
 
 目标结构:`C2SCore`(纯逻辑,可单测)→ `C2SAppKit`(服务与 UI)→ `C2S`(@main 薄壳)。
-本地脚本会给 ad-hoc 构建写入稳定的 designated requirement，避免每次改二进制后
-屏幕录制授权因 cdhash 变化而失效。正式分发前仍需换 `Resources/Info.plist` 里的
-bundle id，并通过 `C2S_SIGN_IDENTITY="Developer ID Application: …"` 使用
-Developer ID 签名 + 公证。
+产品名/bundle id 为 Ringgo / `dev.ringgo.Ringgo`;C2S 仅作为代号保留在 SPM
+目标名与仓库名中。本地脚本会给 ad-hoc 构建写入稳定的 designated requirement，
+避免每次改二进制后屏幕录制授权因 cdhash 变化而失效。正式分发时通过
+`C2S_SIGN_IDENTITY="Developer ID Application: …"` 使用 Developer ID 签名 + 公证。
+
+Developer ID 正式发布（需要钥匙串证书与 `notarytool` profile）：
+
+```bash
+C2S_SIGN_IDENTITY="Developer ID Application: Your Name (TEAMID)" \
+NOTARY_PROFILE="ringgo-notary" \
+Scripts/release-developer-id.sh
+```

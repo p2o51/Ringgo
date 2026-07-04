@@ -36,7 +36,7 @@ struct TranslationLanguageOption: Identifiable, Equatable {
     }
 
     /// "zh-Hans-CN" → "zh-Hans","en-US" → "en"(脚本保留,地区去掉)。
-    private static func normalized(_ raw: String) -> String {
+    static func normalized(_ raw: String) -> String {
         let locale = Locale(identifier: raw)
         let lang = locale.language
         if let script = lang.script?.identifier, let code = lang.languageCode?.identifier {

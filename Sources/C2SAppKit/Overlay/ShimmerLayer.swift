@@ -45,7 +45,7 @@ struct ShimmerLayer: View {
         return Rectangle()
             .fill(Color.white) // 画布底色无意义:shader 只取其 alpha
             .colorEffect(
-                ShaderLibrary.bundle(.module).c2s_fourPointGradient(
+                ShaderLibrary.bundle(C2SResourceBundle.shared).c2s_fourPointGradient(
                     .float2(size),
                     .float(u.time),
                     .float(u.tracking),

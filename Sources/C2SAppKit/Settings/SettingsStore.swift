@@ -26,6 +26,7 @@ public final class SettingsStore: ObservableObject {
         static let hotkeyModifiers = "c2s.hotkeyModifiers"
         static let chargeEnabled = "c2s.chargeEnabled"
         static let doubleShiftEnabled = "c2s.doubleShiftEnabled"
+        static let multitouchEnabled = "c2s.multitouchEnabled"
         static let appearance = "c2s.appearance"
         static let reduceEffects = "c2s.reduceEffects"
         static let translationTarget = "c2s.translationTarget"
@@ -43,6 +44,10 @@ public final class SettingsStore: ObservableObject {
     }
     @Published public var doubleShiftEnabled: Bool = false { // 默认关:开启才申请 AX 权限
         didSet { persist(doubleShiftEnabled, forKey: Keys.doubleShiftEnabled) }
+    }
+    /// Developer ID 直发版实验能力：私有 MultitouchSupport，全局三指双击。
+    @Published public var multitouchEnabled: Bool = false {
+        didSet { persist(multitouchEnabled, forKey: Keys.multitouchEnabled) }
     }
     @Published public var appearance: Appearance = .system {
         didSet {
@@ -87,6 +92,9 @@ public final class SettingsStore: ObservableObject {
         }
         if defaults.object(forKey: Keys.doubleShiftEnabled) != nil {
             doubleShiftEnabled = defaults.bool(forKey: Keys.doubleShiftEnabled)
+        }
+        if defaults.object(forKey: Keys.multitouchEnabled) != nil {
+            multitouchEnabled = defaults.bool(forKey: Keys.multitouchEnabled)
         }
         if let raw = defaults.string(forKey: Keys.appearance),
            let restored = Appearance(rawValue: raw) {
@@ -134,7 +142,7 @@ public final class SettingsStore: ObservableObject {
                 try service.register()
                 // 注册成功但被系统拦在「登录项」待批状态时,给出指引而不拨回。
                 if service.status == .requiresApproval {
-                    launchAtLoginError = "已申请,请在「系统设置 → 通用 → 登录项」中允许 C2S。"
+                    launchAtLoginError = "已申请，请在「系统设置 → 通用 → 登录项」中允许 Ringgo。"
                 }
             } else {
                 guard service.status == .enabled else { return }

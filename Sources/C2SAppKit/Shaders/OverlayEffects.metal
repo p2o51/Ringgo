@@ -1,7 +1,8 @@
 //
 //  OverlayEffects.metal
 //  切片 E(F14):四点渐变微光 + 出现涟漪(ui-style §4.2/§5,机制 §8)。
-//  两个 [[stitchable]] 函数,Swift 侧经 ShaderLibrary.bundle(.module) 取用。
+//  两个 [[stitchable]] 函数,Swift 侧经 ShaderLibrary.bundle(C2SResourceBundle.shared) 取用
+//  (不用 .module —— 见 ResourceBundle.swift 注释)。
 //  坐标纪律:position/origin/tipPoint 均为覆盖层点坐标(左上原点)。
 //
 

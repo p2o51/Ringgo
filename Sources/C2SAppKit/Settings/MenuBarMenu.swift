@@ -5,6 +5,8 @@ import AppKit
 public struct MenuBarMenu: View {
     @EnvironmentObject var coordinator: AppCoordinator
     @EnvironmentObject var settings: SettingsStore
+    @EnvironmentObject var welcome: WelcomeWindowController
+    @EnvironmentObject var settingsWindow: SettingsWindowController
 
     public init() {}
 
@@ -19,18 +21,17 @@ public struct MenuBarMenu: View {
 
         if !coordinator.capture.hasScreenRecordingPermission {
             Button {
-                if let url = URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_ScreenCapture") {
-                    NSWorkspace.shared.open(url)
-                }
+                welcome.show(step: .setup)
             } label: {
                 Label("需要屏幕录制权限…", systemImage: "exclamationmark.triangle")
             }
         }
 
-        SettingsLink { Text("设置…") }
+        Button("设置…") { settingsWindow.show() }
+        Button("欢迎引导…") { welcome.show() }
 
         Divider()
 
-        Button("退出 C2S") { NSApplication.shared.terminate(nil) }
+        Button("退出 Ringgo") { NSApplication.shared.terminate(nil) }
     }
 }

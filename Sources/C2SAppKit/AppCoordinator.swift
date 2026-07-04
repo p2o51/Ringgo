@@ -10,10 +10,12 @@ public final class AppCoordinator: ObservableObject {
     public enum Phase: Equatable { case idle, capturing, overlayActive }
 
     @Published public private(set) var phase: Phase = .idle
+    @Published public private(set) var multitouchStatus: MultitouchTriggerStatus = .disabled
 
     public let settings: SettingsStore
     public let capture = CaptureService()
     private let hotkeys = HotkeyManager()
+    private let multitouch = MultitouchTrigger()
     private let ocr = OCRService()
     private let search = SearchService()
     private let overlay = OverlayWindowController()
@@ -22,6 +24,7 @@ public final class AppCoordinator: ObservableObject {
     private var ocrTask: Task<Void, Never>?
     private var speculativeCapture: Task<CaptureResult, Error>?
     private var settingsSink: AnyCancellable?
+    private var workspaceSinks: Set<AnyCancellable> = []
     private var currentCapture: CaptureResult?
     private var lastTextQuery: String?
     private var lastImageSearchRect: CGRect?
@@ -54,8 +57,11 @@ public final class AppCoordinator: ObservableObject {
         capture.prewarm()
         hotkeys.onEvent = { [weak self] event in self?.handle(event) }
         hotkeys.onError = { [weak self] message in self?.showHotkeyError(message) }
+        multitouch.onFirstTap = { [weak self] in self?.prewarmCapture() }
+        multitouch.onDoubleTap = { [weak self] in self?.handle(.threeFingerDoubleTap) }
         applyTriggerSettings()
         hotkeys.start()
+        installMultitouchLifecycleObservers()
         // 设置变更 → 重新应用触发配置(objectWillChange 在变更前发出,故异步一拍后读取)
         settingsSink = settings.objectWillChange
             .receive(on: DispatchQueue.main)
@@ -70,15 +76,61 @@ public final class AppCoordinator: ObservableObject {
     /// 菜单 hover / 打开时预热抓屏管线(features F1)。
     public func prewarmCapture() { capture.prewarm() }
 
+    /// 设置页开始录制新快捷键：暂停 Carbon 热键与蓄力监听，避免自触发覆盖层。
+    public func beginHotkeyRecording() {
+        hotkeys.suspend()
+    }
+
+    /// 录制结束：先同步最新配置，再恢复全局触发。
+    public func endHotkeyRecording() {
+        hotkeys.apply(config: settings.triggerConfig)
+        hotkeys.resume()
+    }
+
+    public func retryMultitouch() {
+        multitouch.stop()
+        applyMultitouchSetting()
+    }
+
     private func applyTriggerSettings() {
         hotkeys.apply(config: settings.triggerConfig)
+        applyMultitouchSetting()
+    }
+
+    private func applyMultitouchSetting() {
+        guard settings.multitouchEnabled else {
+            multitouch.stop()
+            multitouchStatus = .disabled
+            return
+        }
+        multitouchStatus = multitouch.start()
+    }
+
+    private func installMultitouchLifecycleObservers() {
+        let center = NSWorkspace.shared.notificationCenter
+        center.publisher(for: NSWorkspace.willSleepNotification)
+            .receive(on: DispatchQueue.main)
+            .sink { [weak self] _ in
+                guard let self, self.settings.multitouchEnabled else { return }
+                self.multitouch.stop()
+                self.multitouchStatus = .sleeping
+            }
+            .store(in: &workspaceSinks)
+
+        center.publisher(for: NSWorkspace.didWakeNotification)
+            .receive(on: DispatchQueue.main)
+            .sink { [weak self] _ in
+                guard let self, self.settings.multitouchEnabled else { return }
+                self.retryMultitouch()
+            }
+            .store(in: &workspaceSinks)
     }
 
     // MARK: - 触发
 
     private func handle(_ event: TriggerEvent) {
         switch event {
-        case .hotkey, .menuBar, .doubleShift:
+        case .hotkey, .menuBar, .doubleShift, .threeFingerDoubleTap:
             // 开关语义(v3.1):覆盖层已开 → 再按 = 关闭。
             // 轻点已不再退出(点空白=新框,对齐原版),鼠标党靠热键/Esc 离场。
             if phase == .overlayActive {
@@ -485,9 +537,9 @@ public final class AppCoordinator: ObservableObject {
         alert.alertStyle = .warning
         if let e = error as? CaptureService.CaptureError, case .noPermission = e {
             // TCC 既定行为:授权只对之后新启动的进程生效,已运行的进程必须重启
-            alert.informativeText = "请在「系统设置 → 隐私与安全性 → 屏幕录制」中允许 C2S。\n若已允许,需要重新启动 C2S 才会生效。"
+            alert.informativeText = "请在「系统设置 → 隐私与安全性 → 屏幕录制」中允许 Ringgo。\n若已允许,需要重新启动 Ringgo 才会生效。"
             alert.addButton(withTitle: "打开系统设置")
-            alert.addButton(withTitle: "重新启动 C2S")
+            alert.addButton(withTitle: "重新启动 Ringgo")
             alert.addButton(withTitle: "取消")
             switch alert.runModal() {
             case .alertFirstButtonReturn:
@@ -506,7 +558,7 @@ public final class AppCoordinator: ObservableObject {
     }
 
     /// 以新进程重开自身后退出(授权后刷新 TCC 状态的唯一途径)。
-    private func relaunch() {
+    public func relaunch(completion: ((Bool) -> Void)? = nil) {
         let config = NSWorkspace.OpenConfiguration()
         config.createsNewApplicationInstance = true
         let currentPID = ProcessInfo.processInfo.processIdentifier
@@ -516,15 +568,17 @@ public final class AppCoordinator: ObservableObject {
                     if error == nil,
                        let application,
                        application.processIdentifier != currentPID {
+                        completion?(true)
                         NSApp.terminate(nil)
                         return
                     }
 
                     // 新实例未真正启动时保留当前进程，避免“重新启动”变成单纯退出。
+                    completion?(false)
                     let alert = NSAlert()
-                    alert.messageText = "无法重新启动 C2S"
+                    alert.messageText = "无法重新启动 Ringgo"
                     alert.informativeText = error?.localizedDescription
-                        ?? "系统没有启动新的 C2S 实例，请手动退出后重新打开应用。"
+                        ?? "系统没有启动新的 Ringgo 实例，请手动退出后重新打开应用。"
                     alert.alertStyle = .warning
                     alert.runModal()
                 }

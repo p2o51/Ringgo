@@ -4,7 +4,7 @@ import Vision
 import os
 import C2SCore
 
-private let log = Logger(subsystem: Bundle.main.bundleIdentifier ?? "C2S", category: "OCRService")
+private let log = Logger(subsystem: Bundle.main.bundleIdentifier ?? "Ringgo", category: "OCRService")
 
 /// F3 本地 OCR(机制 §4):单级 `.accurate` 全屏一次、词级框(boundingBox(for:))、
 /// BlockClusterer 聚 block、同一 CGImage 实例缓存。调用方已在 detached Task 中执行。

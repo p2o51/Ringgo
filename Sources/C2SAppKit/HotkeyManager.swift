@@ -17,7 +17,7 @@ public final class HotkeyManager {
     /// 按配置注册热键与手势监听;可重复调用(内部先清干净旧注册/旧 monitor)。
     public func apply(config: TriggerConfig) {
         self.config = config
-        guard isRunning else { return } // 未 start 只存配置,start() 统一激活
+        guard isRunning, !isSuspended else { return } // 暂停时只存配置,resume() 统一激活
         deactivate()
         activate()
     }
@@ -26,7 +26,22 @@ public final class HotkeyManager {
         guard !isRunning else { return }
         isRunning = true
         HotkeyManager.current = self
-        activate()
+        if !isSuspended { activate() }
+    }
+
+    /// 热键录制期间临时让出 Carbon 热键与 flagsChanged 监听。
+    /// 否则当前组合会被系统级注册先消费，录制器收不到 keyDown。
+    public func suspend() {
+        guard !isSuspended else { return }
+        isSuspended = true
+        if isRunning { deactivate() }
+    }
+
+    /// 按最后一次 apply 的配置恢复全局触发。
+    public func resume() {
+        guard isSuspended else { return }
+        isSuspended = false
+        if isRunning { activate() }
     }
 
     /// 注销热键、移除所有 monitor(global + local 引用都必须保存并移除,防泄漏)。
@@ -39,6 +54,7 @@ public final class HotkeyManager {
         }
         if HotkeyManager.current === self { HotkeyManager.current = nil }
         isRunning = false
+        isSuspended = false
     }
 
     // MARK: - 状态
@@ -48,6 +64,7 @@ public final class HotkeyManager {
 
     private var config = TriggerConfig()
     private var isRunning = false
+    private var isSuspended = false
 
     private var hotKeyRef: EventHotKeyRef?
     private var eventHandlerRef: EventHandlerRef?
@@ -231,7 +248,7 @@ public final class HotkeyManager {
             warnedDoubleShiftAX = false
         } else if !warnedDoubleShiftAX {
             warnedDoubleShiftAX = true
-            onError?("「双击 Shift」触发需要辅助功能权限:请在 系统设置 → 隐私与安全性 → 辅助功能 中允许 C2S。")
+            onError?("「双击 Shift」触发需要辅助功能权限：请在「系统设置 → 隐私与安全性 → 辅助功能」中允许 Ringgo。")
         }
     }
 }

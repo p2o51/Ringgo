@@ -1,13 +1,14 @@
-import SwiftUI
 import AppKit
-import Combine
 import ApplicationServices
+import Combine
+import SwiftUI
 
-/// F13 设置窗口(ui-style §4.7):通用/外观/搜索/权限/关于。
-/// 注意:Settings 场景的环境对象由 @main 注入(原项目漏注入 → 一开就崩)。
+/// Ringgo 设置内容：TabView + grouped Form,宿主为 SettingsWindowController
+/// 显式持有的 AppKit 窗口(macOS 26 上 Settings 场景对 accessory 应用不可靠)。
 public struct SettingsView: View {
-    @EnvironmentObject var settings: SettingsStore
-    @EnvironmentObject var coordinator: AppCoordinator
+    @EnvironmentObject private var settings: SettingsStore
+    @EnvironmentObject private var coordinator: AppCoordinator
+    @EnvironmentObject private var welcome: WelcomeWindowController
 
     public init() {}
 
@@ -24,7 +25,7 @@ public struct SettingsView: View {
             AboutTab()
                 .tabItem { Label("关于", systemImage: "info.circle") }
         }
-        .frame(width: 520, height: 380)
+        .frame(width: 560, height: 430)
     }
 }
 
@@ -32,148 +33,121 @@ public struct SettingsView: View {
 
 @MainActor
 private struct GeneralTab: View {
-    @EnvironmentObject var settings: SettingsStore
+    @EnvironmentObject private var settings: SettingsStore
+    @EnvironmentObject private var coordinator: AppCoordinator
+    @State private var axTrusted = AXIsProcessTrusted()
 
     var body: some View {
         Form {
-            Section("触发") {
+            Section("圈选") {
                 HotkeyRecorderRow()
-                VStack(alignment: .leading, spacing: 2) {
+            }
+
+            Section("更多唤起方式") {
+                VStack(alignment: .leading, spacing: 3) {
                     Toggle("蓄力唤起", isOn: $settings.chargeEnabled)
-                    Text("按住 ⌘⇧ 约 250 毫秒唤起;阈值前松开即取消。")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
+                    Text("按住 ⌘⇧ 约 250 毫秒唤起；阈值前松开即取消。")
+                        .settingsCaption()
                 }
-                VStack(alignment: .leading, spacing: 2) {
+
+                VStack(alignment: .leading, spacing: 5) {
                     Toggle("双击 Shift 唤起", isOn: $settings.doubleShiftEnabled)
-                    Text("可选能力,需要辅助功能权限;开启时才会向系统申请。")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
+                    Text("可选能力，需要辅助功能权限；开启时才会向系统申请。")
+                        .settingsCaption()
+
+                    if settings.doubleShiftEnabled && !axTrusted {
+                        HStack(spacing: 7) {
+                            Image(systemName: "exclamationmark.triangle.fill")
+                                .foregroundStyle(Color(nsColor: .systemYellow))
+                            Text("尚未授予辅助功能权限")
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                            Spacer()
+                            Button("前往授权…") {
+                                openSystemSettings(
+                                    "x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility"
+                                )
+                            }
+                            .controlSize(.small)
+                        }
+                    }
+                }
+
+                VStack(alignment: .leading, spacing: 5) {
+                    Toggle("三指双击触控板（实验性）", isOn: $settings.multitouchEnabled)
+                    Text("在任意 App 前台连续三指轻点两次。无需辅助功能权限；可能与系统三指手势冲突。")
+                        .settingsCaption()
+
+                    if settings.multitouchEnabled {
+                        MultitouchStatusRow(status: coordinator.multitouchStatus) {
+                            coordinator.retryMultitouch()
+                        }
+                    }
                 }
             }
+
             Section("启动") {
-                VStack(alignment: .leading, spacing: 2) {
-                    Toggle("登录时启动", isOn: $settings.launchAtLogin)
+                VStack(alignment: .leading, spacing: 3) {
+                    Toggle("登录时启动 Ringgo", isOn: $settings.launchAtLogin)
+                    Text("登录 Mac 时在菜单栏静默启动。")
+                        .settingsCaption()
                     if let hint = settings.launchAtLoginError {
                         Text(hint)
                             .font(.caption)
-                            .foregroundStyle(.red)
+                            .foregroundStyle(Color.red)
                     }
                 }
             }
         }
         .formStyle(.grouped)
-        .onChange(of: settings.doubleShiftEnabled) { _, isOn in
-            if isOn { requestAccessibilityPrompt() }
+        .onChange(of: settings.doubleShiftEnabled) { _, enabled in
+            if enabled { requestAccessibilityPrompt() }
+            axTrusted = AXIsProcessTrusted()
+        }
+        .onReceive(NotificationCenter.default.publisher(for: NSApplication.didBecomeActiveNotification)) { _ in
+            axTrusted = AXIsProcessTrusted()
         }
     }
 
-    /// 双击 Shift 是唯一需要 AX 权限的可选能力(features §F1),开启时才申请。
     private func requestAccessibilityPrompt() {
         let promptKey = kAXTrustedCheckOptionPrompt.takeUnretainedValue() as String
         _ = AXIsProcessTrustedWithOptions([promptKey: true] as CFDictionary)
     }
 }
 
-/// 热键录制:点「录制」进入监听态,local monitor 抓下一次 keyDown 写回 store;Esc 取消。
-@MainActor
-private struct HotkeyRecorderRow: View {
-    @EnvironmentObject var settings: SettingsStore
-    @State private var isRecording = false
-    @State private var monitor: Any?
+private struct MultitouchStatusRow: View {
+    let status: MultitouchTriggerStatus
+    let retry: () -> Void
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 2) {
-            LabeledContent("圈选热键") {
-                HStack(spacing: 8) {
-                    Text(isRecording
-                         ? "按下新组合…"
-                         : HotkeySymbols.string(keyCode: settings.hotkeyKeyCode,
-                                                carbonModifiers: settings.hotkeyModifiers))
-                        .foregroundStyle(isRecording ? .secondary : .primary)
-                        .padding(.horizontal, 8)
-                        .padding(.vertical, 3)
-                        .background(.quaternary, in: RoundedRectangle(cornerRadius: 6))
-                    Button(isRecording ? "取消" : "录制") {
-                        if isRecording { stopRecording() } else { startRecording() }
-                    }
-                }
-            }
-            if isRecording {
-                Text("需包含至少一个修饰键(⌘⌥⌃⇧);按 Esc 取消。")
+        HStack(spacing: 7) {
+            switch status {
+            case .disabled:
+                EmptyView()
+            case .active(let deviceCount):
+                Image(systemName: "checkmark.circle.fill")
+                    .foregroundStyle(Color.green)
+                Text("已连接 \(deviceCount) 个触控板")
                     .font(.caption)
                     .foregroundStyle(.secondary)
+            case .sleeping:
+                ProgressView()
+                    .controlSize(.small)
+                Text("睡眠中，唤醒后自动重连")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            case .unavailable(let message):
+                Image(systemName: "exclamationmark.triangle.fill")
+                    .foregroundStyle(Color(nsColor: .systemYellow))
+                Text(message)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .lineLimit(2)
+                Spacer()
+                Button("重试", action: retry)
+                    .controlSize(.small)
             }
         }
-        .onDisappear { stopRecording() } // monitor 必须移除,防泄漏
-    }
-
-    private func startRecording() {
-        guard monitor == nil else { return }
-        isRecording = true
-        monitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { event in
-            MainActor.assumeIsolated { handleRecorded(event) }
-            return nil // 录制期间吞掉按键,避免误触其他快捷键
-        }
-    }
-
-    private func stopRecording() {
-        if let monitor { NSEvent.removeMonitor(monitor) }
-        monitor = nil
-        isRecording = false
-    }
-
-    private func handleRecorded(_ event: NSEvent) {
-        if event.keyCode == 53 { // Esc
-            stopRecording()
-            return
-        }
-        let carbon = HotkeySymbols.carbonModifiers(from: event.modifierFlags)
-        guard carbon != 0 else { return } // 无修饰键不收,继续监听
-        settings.hotkeyKeyCode = UInt32(event.keyCode)
-        settings.hotkeyModifiers = carbon
-        stopRecording()
-    }
-}
-
-/// NSEvent 修饰键 → Carbon 位,以及组合展示(如 ⌘⇧S)。
-private enum HotkeySymbols {
-    // Carbon 修饰键位:cmd=256、shift=512、option=2048、control=4096
-    static func carbonModifiers(from flags: NSEvent.ModifierFlags) -> UInt32 {
-        var bits: UInt32 = 0
-        if flags.contains(.command) { bits |= 256 }
-        if flags.contains(.shift) { bits |= 512 }
-        if flags.contains(.option) { bits |= 2048 }
-        if flags.contains(.control) { bits |= 4096 }
-        return bits
-    }
-
-    static func string(keyCode: UInt32, carbonModifiers: UInt32) -> String {
-        var s = ""
-        if carbonModifiers & 4096 != 0 { s += "⌃" }
-        if carbonModifiers & 2048 != 0 { s += "⌥" }
-        if carbonModifiers & 512 != 0 { s += "⇧" }
-        if carbonModifiers & 256 != 0 { s += "⌘" }
-        return s + keyName(keyCode)
-    }
-
-    // ANSI(美式)布局近似表;查不到的键码退化为 "键N"。
-    private static let names: [UInt32: String] = [
-        0: "A", 1: "S", 2: "D", 3: "F", 4: "H", 5: "G", 6: "Z", 7: "X", 8: "C", 9: "V",
-        11: "B", 12: "Q", 13: "W", 14: "E", 15: "R", 16: "Y", 17: "T",
-        18: "1", 19: "2", 20: "3", 21: "4", 22: "6", 23: "5", 24: "=", 25: "9", 26: "7",
-        27: "-", 28: "8", 29: "0", 30: "]", 31: "O", 32: "U", 33: "[", 34: "I", 35: "P",
-        37: "L", 38: "J", 39: "'", 40: "K", 41: ";", 42: "\\", 43: ",", 44: "/", 45: "N",
-        46: "M", 47: ".", 50: "`",
-        36: "↩", 48: "⇥", 49: "空格", 51: "⌫", 53: "⎋", 76: "⌤",
-        115: "↖", 116: "⇞", 117: "⌦", 119: "↘", 121: "⇟",
-        123: "←", 124: "→", 125: "↓", 126: "↑",
-        122: "F1", 120: "F2", 99: "F3", 118: "F4", 96: "F5", 97: "F6", 98: "F7", 100: "F8",
-        101: "F9", 109: "F10", 103: "F11", 111: "F12", 105: "F13", 107: "F14", 113: "F15",
-    ]
-
-    static func keyName(_ code: UInt32) -> String {
-        names[code] ?? "键\(code)"
     }
 }
 
@@ -181,22 +155,43 @@ private enum HotkeySymbols {
 
 @MainActor
 private struct AppearanceTab: View {
-    @EnvironmentObject var settings: SettingsStore
+    @EnvironmentObject private var settings: SettingsStore
 
     var body: some View {
         Form {
-            Section {
-                // 选中即由 SettingsStore.didSet 设 NSApp.appearance 并持久化
-                Picker("外观", selection: $settings.appearance) {
+            Section("外观") {
+                HStack(spacing: 22) {
                     ForEach(SettingsStore.Appearance.allCases) { appearance in
-                        Text(appearance.label).tag(appearance)
+                        Button {
+                            settings.appearance = appearance
+                        } label: {
+                            VStack(spacing: 7) {
+                                AppearancePreview(appearance: appearance,
+                                                  selected: settings.appearance == appearance)
+                                Text(appearance.label)
+                                    .font(.system(size: 11,
+                                                  weight: settings.appearance == appearance
+                                                    ? .medium : .regular))
+                                    .foregroundStyle(settings.appearance == appearance
+                                                        ? AnyShapeStyle(Color.accentColor)
+                                                        : AnyShapeStyle(.secondary))
+                            }
+                        }
+                        .buttonStyle(.plain)
+                        .accessibilityLabel(appearance.label)
+                        .accessibilityAddTraits(settings.appearance == appearance
+                                                    ? .isSelected : [])
                     }
                 }
-                VStack(alignment: .leading, spacing: 2) {
+                .frame(maxWidth: .infinity)
+                .padding(.vertical, 8)
+            }
+
+            Section {
+                VStack(alignment: .leading, spacing: 3) {
                     Toggle("减弱动态效果", isOn: $settings.reduceEffects)
-                    Text("关闭微光游走、涟漪等装饰性动画,面板改用淡入淡出。")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
+                    Text("关闭微光游走、涟漪等装饰性动画，面板改用淡入淡出。")
+                        .settingsCaption()
                 }
             }
         }
@@ -204,26 +199,104 @@ private struct AppearanceTab: View {
     }
 }
 
+private struct AppearancePreview: View {
+    let appearance: SettingsStore.Appearance
+    let selected: Bool
+
+    private var background: AnyShapeStyle {
+        switch appearance {
+        case .light:
+            return AnyShapeStyle(Color.white)
+        case .dark:
+            return AnyShapeStyle(Color(red: 0.11, green: 0.12, blue: 0.15))
+        case .system:
+            return AnyShapeStyle(
+                LinearGradient(colors: [.white, Color(red: 0.11, green: 0.12, blue: 0.15)],
+                               startPoint: .topLeading,
+                               endPoint: .bottomTrailing)
+            )
+        }
+    }
+
+    var body: some View {
+        ZStack {
+            RoundedRectangle(cornerRadius: 8, style: .continuous)
+                .fill(background)
+            VStack(alignment: .leading, spacing: 4) {
+                Capsule().fill(rowColor.opacity(0.8)).frame(width: 36, height: 4)
+                Capsule().fill(rowColor.opacity(0.55)).frame(width: 45, height: 4)
+                Capsule().fill(rowColor.opacity(0.35)).frame(width: 28, height: 4)
+            }
+        }
+        .frame(width: 68, height: 46)
+        .overlay(
+            RoundedRectangle(cornerRadius: 8, style: .continuous)
+                .strokeBorder(Color(nsColor: .separatorColor), lineWidth: 0.5)
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: 11, style: .continuous)
+                .stroke(selected ? Color.accentColor : Color.clear, lineWidth: 2)
+                .padding(-4)
+        )
+    }
+
+    private var rowColor: Color {
+        appearance == .dark ? .white : .black
+    }
+}
+
 // MARK: - 搜索
 
 @MainActor
 private struct SearchTab: View {
+    @EnvironmentObject private var settings: SettingsStore
+
+    private var systemLanguageCode: String {
+        TranslationLanguageOption.normalized(Locale.preferredLanguages.first ?? "en")
+    }
+
+    private var systemLanguageName: String {
+        TranslationLanguageOption.option(for: systemLanguageCode).displayName
+    }
+
+    private var languageOptions: [TranslationLanguageOption] {
+        var options = TranslationLanguageOption.menuOptions()
+        let selected = settings.translationTargetCode
+        if !selected.isEmpty, !options.contains(where: { $0.id == selected }) {
+            options.append(TranslationLanguageOption.option(for: selected))
+        }
+        return options
+    }
+
     var body: some View {
         Form {
-            Section("搜索引擎") {
-                // 目前仅支持 Google,占位禁用
-                Picker("默认引擎", selection: .constant("google")) {
-                    Text("Google").tag("google")
+            Section("搜索") {
+                VStack(alignment: .leading, spacing: 3) {
+                    LabeledContent("默认引擎", value: "Google")
+                    Text("目前支持 Google，更多引擎仍在计划中。")
+                        .settingsCaption()
                 }
-                .disabled(true)
             }
-            Section("识别语言") {
-                VStack(alignment: .leading, spacing: 2) {
+
+            Section("文字识别") {
+                VStack(alignment: .leading, spacing: 3) {
                     LabeledContent("OCR 语言", value: "自动检测")
-                    Text("由 Apple Vision 端上识别,自动检测语言,支持中、英、日、韩等。")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
+                    Text("由 Apple Vision 在本机识别，支持中、英、日、韩等语言。")
+                        .settingsCaption()
                 }
+            }
+
+            Section("翻译") {
+                Picker("翻译成", selection: $settings.translationTargetCode) {
+                    Text("跟随系统（\(systemLanguageName)）").tag("")
+                    Divider()
+                    ForEach(languageOptions) { option in
+                        Text(option.displayName).tag(option.id)
+                    }
+                }
+
+                Text("圈选文字或图片后的翻译目标；与圈选工具条保持同步。整屏翻译需要 macOS 15 或更高版本。")
+                    .settingsCaption()
             }
         }
         .formStyle(.grouped)
@@ -234,41 +307,61 @@ private struct SearchTab: View {
 
 @MainActor
 private struct PermissionsTab: View {
-    @EnvironmentObject var settings: SettingsStore
-    @EnvironmentObject var coordinator: AppCoordinator
+    @EnvironmentObject private var settings: SettingsStore
+    @EnvironmentObject private var coordinator: AppCoordinator
     @State private var screenGranted = false
     @State private var axTrusted = false
+    @AppStorage(WelcomeStateKeys.screenPromptShown) private var screenPromptShown = false
 
     var body: some View {
         Form {
             Section("屏幕录制") {
-                LabeledContent("状态") { PermissionStatusText(granted: screenGranted) }
-                VStack(alignment: .leading, spacing: 4) {
-                    Text("圈选需要屏幕录制权限来截取当前屏幕。")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                    Button("打开系统设置") {
-                        openSystemSettings("x-apple.systempreferences:com.apple.preference.security?Privacy_ScreenCapture")
+                PermissionRow(
+                    icon: "rectangle.dashed.badge.record",
+                    title: "屏幕录制",
+                    detail: "圈选时截取一帧当前屏幕；不录像，也不会自动上传。",
+                    granted: screenGranted,
+                    actionTitle: "前往授权…"
+                ) {
+                    screenPromptShown = true
+                    openSystemSettings(
+                        "x-apple.systempreferences:com.apple.preference.security?Privacy_ScreenCapture"
+                    )
+                }
+
+                if !screenGranted && screenPromptShown {
+                    HStack(spacing: 7) {
+                        Image(systemName: "exclamationmark.triangle.fill")
+                            .foregroundStyle(Color(nsColor: .systemYellow))
+                        Text("允许后需要重新启动 Ringgo 才会生效。")
+                            .settingsCaption()
+                        Spacer()
+                        Button("重新启动 Ringgo") {
+                            coordinator.relaunch()
+                        }
+                        .controlSize(.small)
                     }
                 }
             }
+
             if settings.doubleShiftEnabled {
                 Section("辅助功能") {
-                    LabeledContent("状态") { PermissionStatusText(granted: axTrusted) }
-                    VStack(alignment: .leading, spacing: 4) {
-                        Text("仅「双击 Shift 唤起」这项可选能力需要辅助功能权限;主热键与蓄力唤起不需要。")
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
-                        Button("打开系统设置") {
-                            openSystemSettings("x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility")
-                        }
+                    PermissionRow(
+                        icon: "accessibility",
+                        title: "辅助功能",
+                        detail: "仅「双击 Shift 唤起」需要；主热键与蓄力唤起不需要。",
+                        granted: axTrusted,
+                        actionTitle: "前往授权…"
+                    ) {
+                        openSystemSettings(
+                            "x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility"
+                        )
                     }
                 }
             }
         }
         .formStyle(.grouped)
         .onAppear { refresh() }
-        // 从系统设置授权后切回来时刷新状态
         .onReceive(NotificationCenter.default.publisher(for: NSApplication.didBecomeActiveNotification)) { _ in
             refresh()
         }
@@ -278,43 +371,86 @@ private struct PermissionsTab: View {
         screenGranted = coordinator.capture.hasScreenRecordingPermission
         axTrusted = AXIsProcessTrusted()
     }
-
-    private func openSystemSettings(_ urlString: String) {
-        guard let url = URL(string: urlString) else { return }
-        NSWorkspace.shared.open(url)
-    }
 }
 
-private struct PermissionStatusText: View {
+private struct PermissionRow: View {
+    let icon: String
+    let title: String
+    let detail: String
     let granted: Bool
+    let actionTitle: String
+    let action: () -> Void
 
     var body: some View {
-        Text(granted ? "● 已授权" : "○ 未授权")
-            .foregroundStyle(granted ? Color.green : Color.secondary)
+        HStack(alignment: .center, spacing: 11) {
+            SettingsPermissionIcon(systemName: icon)
+
+            VStack(alignment: .leading, spacing: 3) {
+                Text(title)
+                    .font(.system(size: 13, weight: .medium))
+                Text(detail)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+
+            Spacer(minLength: 12)
+
+            if granted {
+                Label("已授权", systemImage: "checkmark.circle.fill")
+                    .font(.system(size: 11, weight: .medium))
+                    .foregroundStyle(Color.green)
+            } else {
+                Button(actionTitle, action: action)
+                    .controlSize(.small)
+            }
+        }
+        .padding(.vertical, 2)
     }
 }
 
 // MARK: - 关于
 
+@MainActor
 private struct AboutTab: View {
+    @EnvironmentObject private var welcome: WelcomeWindowController
+
     private var version: String {
-        (Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String) ?? "开发构建"
+        (Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String)
+            ?? "开发构建"
     }
 
     var body: some View {
-        VStack(spacing: 8) {
-            Image(systemName: "circle.dashed")
-                .font(.system(size: 44))
-                .foregroundStyle(.tint)
-            Text("C2S")
+        VStack(spacing: 9) {
+            Image(nsImage: NSApp.applicationIconImage)
+                .resizable()
+                .interpolation(.high)
+                .frame(width: 76, height: 76)
+
+            Text("Ringgo")
                 .font(.title2.weight(.semibold))
             Text("版本 \(version)")
                 .font(.callout)
                 .foregroundStyle(.secondary)
-            Text("净室自研,零第三方依赖。")
-                .font(.caption)
-                .foregroundStyle(.secondary)
+
+            Button("查看欢迎引导") {
+                welcome.show()
+            }
+            .padding(.top, 8)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
+}
+
+private extension Text {
+    func settingsCaption() -> some View {
+        font(.caption)
+            .foregroundStyle(.secondary)
+            .fixedSize(horizontal: false, vertical: true)
+    }
+}
+
+private func openSystemSettings(_ urlString: String) {
+    guard let url = URL(string: urlString) else { return }
+    NSWorkspace.shared.open(url)
 }

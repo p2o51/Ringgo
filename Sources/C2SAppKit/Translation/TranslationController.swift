@@ -4,7 +4,7 @@ import SwiftUI
 import Translation
 import os
 
-let translationLog = Logger(subsystem: "dev.c2s.C2S", category: "translation")
+let translationLog = Logger(subsystem: "dev.ringgo.Ringgo", category: "translation")
 
 // MARK: - 纯数据类型(不 gate,低版本代码可引用)
 

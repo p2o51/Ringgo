@@ -59,7 +59,7 @@ private struct RippleShader: ViewModifier, Animatable {
 
     func body(content: Content) -> some View {
         content.layerEffect(
-            ShaderLibrary.bundle(.module).c2s_ripple(
+            ShaderLibrary.bundle(C2SResourceBundle.shared).c2s_ripple(
                 .float2(origin),
                 .float(progress),
                 .float(amplitude),

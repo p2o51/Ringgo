@@ -7,6 +7,7 @@ public enum TriggerEvent: Sendable, Equatable {
     case hotkey
     case menuBar
     case doubleShift
+    case threeFingerDoubleTap
     /// 按住 ⌘⇧ 开始蓄力(coordinator 借这 ~250ms 并行预抓屏,松手即冻结零空窗)。
     case chargeBegan
     case chargeFired
