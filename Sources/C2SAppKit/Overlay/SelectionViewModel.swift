@@ -405,11 +405,41 @@ final class SelectionViewModel: ObservableObject {
         highlightedWords = selection
     }
 
+    // MARK: - 选区类型切换(迷你工具条「改选」chip,2026-07-04)
+
+    /// 文字选区 → 图片框:选区外接框外扩 8pt 转可调矩形,立即图搜。
+    /// 场景:图片上的文字被 OCR 吸走(用户其实想搜整张图),一键改回框选。
+    func switchSelectionToImage() {
+        guard case .textSelected = state, let bounds = selectionBounds else { return }
+        pendingGesture = nil // 显式改图意图,不得再被 OCR 兜底翻回文字
+        clearSelection()
+        var rect = atLeast(bounds.insetBy(dx: -8, dy: -8), minW: minRectSide, minH: minRectSide)
+        rect = clampRect(rect)
+        state = .rectSelection(rect: rect)
+        Haptics.confirm() // 新框落定
+        route(rect: rect)
+    }
+
+    /// 图片框 → 文字选区:框内的词(词中心落框内,阅读序)整体选中并发文字搜索。
+    /// 框内没词(或 OCR 未完成)返回 false,由调用方播放「无文字」反馈,选区不动。
+    @discardableResult
+    func switchSelectionToText() -> Bool {
+        guard case .rectSelection(let rect) = state, let engine else { return false }
+        let selection = engine.words(inRect: rect)
+        guard let first = selection.first, let last = selection.last else { return false }
+        pendingGesture = nil
+        state = .textSelected(words: selection, anchorID: first.id, endID: last.id)
+        highlightedWords = selection
+        Haptics.confirm() // 选区定格
+        onTextSearch(SelectionEngine.text(for: selection))
+        return true
+    }
+
     // MARK: - 矩形路由与调整
 
     /// 矩形选区一律图搜(2026-07-03 用户拍板,对齐原版 Circle to Search):
     /// 框一旦出现,不管怎么调整都是搜图 —— 框里有字也交给 Lens 自己识别,
-    /// 绝不中途翻转成文字搜索(想搜文字用笔刷划词)。
+    /// 绝不中途翻转成文字搜索(想搜文字用笔刷划词;明确的「改选文字」chip 除外)。
     private func route(rect: CGRect) {
         onImageSearch(rect)
     }

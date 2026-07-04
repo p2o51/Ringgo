@@ -4,37 +4,37 @@
 <dict>
 	<key>CFBundleDevelopmentRegion</key>
 	<string>zh_CN</string>
+	<key>CFBundleDisplayName</key>
+	<string>Ringgo</string>
 	<key>CFBundleExecutable</key>
 	<string>Ringgo</string>
+	<key>CFBundleIconFile</key>
+	<string>AppIcon</string>
 	<key>CFBundleIdentifier</key>
 	<string>dev.ringgo.Ringgo</string>
 	<key>CFBundleInfoDictionaryVersion</key>
 	<string>6.0</string>
 	<key>CFBundleName</key>
 	<string>Ringgo</string>
-	<key>CFBundleDisplayName</key>
-	<string>Ringgo</string>
 	<key>CFBundlePackageType</key>
 	<string>APPL</string>
-	<key>CFBundleIconFile</key>
-	<string>AppIcon</string>
 	<key>CFBundleShortVersionString</key>
-	<string>0.6.0</string>
+	<string>0.7.0</string>
 	<key>CFBundleVersion</key>
-	<string>1</string>
+	<string>2</string>
 	<key>LSMinimumSystemVersion</key>
 	<string>14.0</string>
 	<key>LSUIElement</key>
 	<true/>
-	<key>NSPrincipalClass</key>
-	<string>NSApplication</string>
-	<key>NSHighResolutionCapable</key>
-	<true/>
-	<key>NSScreenCaptureUsageDescription</key>
-	<string>Ringgo 需要屏幕录制权限来截取当前屏幕,供圈选搜索使用。截图只在本机处理,不会自动上传。</string>
-	<key>NSContactsUsageDescription</key>
-	<string>扫描到联系人二维码(vCard)时,Ringgo 需要访问通讯录来帮你保存联系人。</string>
 	<key>NSCalendarsUsageDescription</key>
 	<string>扫描到日程二维码(vEvent)时,Ringgo 需要访问日历来帮你添加日程。</string>
+	<key>NSContactsUsageDescription</key>
+	<string>扫描到联系人二维码(vCard)时,Ringgo 需要访问通讯录来帮你保存联系人。</string>
+	<key>NSHighResolutionCapable</key>
+	<true/>
+	<key>NSPrincipalClass</key>
+	<string>NSApplication</string>
+	<key>NSScreenCaptureUsageDescription</key>
+	<string>Ringgo 需要屏幕录制权限来截取当前屏幕,供圈选搜索使用。截图只在本机处理,不会自动上传。</string>
 </dict>
 </plist>

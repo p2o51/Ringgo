@@ -287,7 +287,8 @@ struct OverlayRootView: View {
                     activeMode: activeMode,
                     reduceEffects: reduceEffects || reduceMotion,
                     onTranslate: { onToggleTranslateSelection() },
-                    onVisualize: { onToggleVisualizeSelection() })
+                    onVisualize: { onToggleVisualizeSelection() },
+                    onSwitchToImage: { viewModel.switchSelectionToImage() })
                     .offset(x: origin.x, y: origin.y)
                     .id("text-\(Int(bounds.minX))-\(Int(bounds.minY))-\(Int(bounds.width))")
             case .image:
@@ -298,7 +299,12 @@ struct OverlayRootView: View {
                     onTranslate: { onTranslateImage() },
                     onVisualize: { onVisualizeImage() },
                     editExpanded: $imageEditExpanded,
-                    onEditSubmit: { onSubmitImageEdit($0) })
+                    onEditSubmit: { onSubmitImageEdit($0) },
+                    onSwitchToText: {
+                        let switched = viewModel.switchSelectionToText()
+                        if !switched { Haptics.align() } // 「没有可选的」轻提示
+                        return switched
+                    })
                     .offset(x: origin.x, y: origin.y)
                     // 展开/收起时宽度与摆位一起动(动画在 offset 之后才盖得到摆位;减弱动态直切)
                     .animation((reduceMotion || reduceEffects) ? nil

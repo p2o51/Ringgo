@@ -127,11 +127,14 @@
 ### 4.65 工具条族(2026-07-03,Liquid Glass)
 - **底部工具条(v2,Spotlight 形态)**:玻璃搜索药丸(放大镜 + 输入框 + 听写麦克风,宽 260–480)+ **独立圆形翻译钮**(52Ø,hover 上方弹语言菜单,180ms 离开宽限;<macOS 15 禁用 + help);**呼出即聚焦输入框**(Spotlight 同款);距底 48pt;笔刷进行中隐藏(opacity+move 过渡)。
 - **迷你工具条(v2)**(仅文字选区,选区尾部):单「翻译」按钮胶囊 36 高(~~复制按钮~~ 统一走 ⌘C);摆位级联 = 选区右下外 → 上方外 → 右侧外 → 左侧外 → 兜底贴角,**绝不压选区/出屏**;出现 scale 0.92→1 spring。
+- **「改选」chip**(2026-07-04):迷你工具条动作胶囊左侧 8pt 一枚独立小胶囊(同 36 高、同玻璃/描边/投影,前景 .secondary)——「改选图片」/「改选文字」;不可切(框内无字)= 水平摇头(sin 三来回 ±5pt,GeometryEffect)+ chip 上方 8pt 浮「未识别到文字」小玻璃气泡(不参与布局,1.6s 隐去);减弱动态 → 无摇头、气泡纯淡入。
 - **全屏翻译盖板**:thinMaterial 行板(圆角 4 + hairline)+ 自适应字号译文(rect.height×0.68,minScale 0.35);顶部进度胶囊;整层 0.15s 淡入。均尊重减弱动态。
 
 ### 4.7 菜单栏图标 + 设置窗口
-- 菜单栏:`MenuBarExtra`,图标随屏幕录制权限状态在 `record.circle` / `record.circle.fill` 间切换;菜单含「立即圈选」「设置…」「权限」「退出」。**Info.plist 设 `LSUIElement=YES`**(免启动 Dock 闪一下)。
-- 设置窗口:标准 SwiftUI `Settings` 场景,分组:通用(触发方式/热键录制/双击或蓄力开关)、外观(跟随系统/深/浅、减弱动态)、搜索(默认引擎、语言)、权限(状态 + 一键跳系统设置)、关于。**记得给 Settings 场景注入所需的环境对象**(原项目就是这里漏了导致一开设置就崩)。
+- 菜单栏:`MenuBarExtra` + Ringgo 单色 template PDF(随菜单栏明暗自动着色);菜单含「立即圈选」「权限修复」「设置…」「欢迎引导…」「退出」。**Info.plist 设 `LSUIElement=YES`**(免启动 Dock 闪一下)。
+- 设置窗口:标准 SwiftUI `Settings` 场景,固定 5 tab:通用(键帽式热键录制/双击或蓄力/登录项)、外观(浅/深/跟随系统样片、减弱动态)、搜索(Google/OCR/翻译目标语言)、权限(状态 + 授权后重启闭环)、关于(图标/版本/重开引导)。正文一律 grouped Form + 系统语义色；品牌视觉只在 App 图标与欢迎页出现。
+- 欢迎页:手建 AppKit accessory 窗口(500×590，两步)，首次启动出现一次；从菜单栏/关于可重开。授权屏幕录制后必须明确引导重启，并用一次性 resume 标记让新进程回到设置步骤。
+- **环境对象**:Settings/MenuBar/Welcome 必须注入同一组 store/controller(原项目就是这里漏了导致一开设置就崩)。
 
 ### 4.8 轻量 HUD / Toast
 - 复制成功、权限提示等用一个小型居中/靠上 HUD:material 卡 + SF Symbol + 一行字,1.5–2s 自动消失,spring 入场。
@@ -185,3 +188,4 @@
 - ❌ 光谱四色滥用到 UI/文本 → 只作品牌点睛。
 - ❌ 忘记 `LSUIElement` → Dock 图标闪。
 - ❌ Settings 场景漏注入环境对象 → 一开就崩。
+- ❌ accessory 应用用 `Settings` 场景/`SettingsLink` → macOS 26 无窗口上下文时静默不开(菜单动作发出、窗口不实体化)。设置窗口由 AppKit 显式持有(`SettingsWindowController`),并 `orderFrontRegardless()` 对抗协作式激活拒绝。

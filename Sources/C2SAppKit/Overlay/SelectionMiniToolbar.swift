@@ -22,6 +22,13 @@ struct SelectionMiniToolbar: View {
     /// 编辑指令提交(nano banana);nil = 不显示编辑按钮。
     var onEditSubmit: ((String) -> Void)?
 
+    /// 「改选」chip(独立小胶囊,与动作胶囊隔开——语义是切换选区类型,不是操作):
+    /// .text → 「改选图片」(图上文字被误选时改回框选);nil = 不显示。
+    var onSwitchToImage: (() -> Void)?
+    /// .image → 「改选文字」;返回 false = 框内没有文字,chip 原地摇头 +
+    /// 浮出「未识别到文字」说明(选区不动)。nil = 不显示。
+    var onSwitchToText: (() -> Bool)?
+
     /// 指令草稿(提交后保留,再次展开可微调重发)。
     @State private var editText = ""
     @FocusState private var editFieldFocused: Bool
@@ -29,6 +36,11 @@ struct SelectionMiniToolbar: View {
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     /// onAppear 驱动一次的入场标记(scale 0.92→1 + 淡入;减弱动态 → 纯淡入)。
     @State private var appeared = false
+    /// 摇头动画相位(+1 = 三个来回;整数静止位无位移)。
+    @State private var shakePhase: CGFloat = 0
+    /// 「未识别到文字」浮出说明(1.6s 后自动隐去)。
+    @State private var noTextCaptionVisible = false
+    @State private var captionTask: Task<Void, Never>?
 
     // MARK: - 尺寸常量(estimatedSize 与 body 共用,保持一致)
 
@@ -49,6 +61,10 @@ struct SelectionMiniToolbar: View {
         static let editFieldWidth: CGFloat = 210
         static let editSubmitWidth: CGFloat = 26
         static let editFieldLeadingGap: CGFloat = 8
+        /// 「改选」chip 与动作胶囊的间隔(独立胶囊,视觉隔开)。
+        static let switchChipGap: CGFloat = 8
+        /// chip 内容估算宽:SF 图标 ~14 + 间距 5 + 四个汉字(12pt medium)~50。
+        static let switchChipContentWidth: CGFloat = 69
     }
 
     private var motionReduced: Bool { reduceEffects || reduceMotion }
@@ -56,6 +72,26 @@ struct SelectionMiniToolbar: View {
     // MARK: - Body
 
     var body: some View {
+        // 「改选」chip(独立小胶囊)在前 + 动作胶囊在后;整体一起入场。
+        // placement 右对齐选区右缘 → 动作胶囊位置与无 chip 时基本一致,chip 向左伸出。
+        HStack(alignment: .center, spacing: Metrics.switchChipGap) {
+            switchChip
+            actionCapsule
+        }
+        .scaleEffect(motionReduced || appeared ? 1 : 0.92)
+        .opacity(appeared ? 1 : 0)
+        .onAppear {
+            let animation: Animation = motionReduced
+                ? .easeOut(duration: 0.15)
+                : .spring(response: 0.25, dampingFraction: 0.8)
+            withAnimation(animation) { appeared = true }
+        }
+        .onDisappear { captionTask?.cancel() }
+        .accessibilityElement(children: .contain)
+        .accessibilityLabel("选区工具条")
+    }
+
+    private var actionCapsule: some View {
         // v3(2026-07-03):.text = [翻译][可视化],.image = [翻译][可视化][编辑];
         // 复制按钮仍不回归(⌘C 直接复制文字/图片)
         HStack(spacing: 0) {
@@ -108,16 +144,86 @@ struct SelectionMiniToolbar: View {
         )
         .shadow(color: .black.opacity(0.16), radius: 5, y: 2)
         .animation(motionReduced ? nil : .easeOut(duration: 0.12), value: activeMode)
-        .scaleEffect(motionReduced || appeared ? 1 : 0.92)
-        .opacity(appeared ? 1 : 0)
-        .onAppear {
-            let animation: Animation = motionReduced
-                ? .easeOut(duration: 0.15)
-                : .spring(response: 0.25, dampingFraction: 0.8)
-            withAnimation(animation) { appeared = true }
+    }
+
+    // MARK: - 「改选」chip(切换选区类型;编辑输入展开时让位隐藏)
+
+    @ViewBuilder private var switchChip: some View {
+        let config: (icon: String, title: String, action: () -> Void)? = {
+            switch kind {
+            case .text:
+                guard let onSwitchToImage else { return nil }
+                return ("photo", "改选图片", onSwitchToImage)
+            case .image:
+                guard onSwitchToText != nil, !editExpanded.wrappedValue else { return nil }
+                return ("text.viewfinder", "改选文字", switchToTextTapped)
+            }
+        }()
+        if let config {
+            Button(action: config.action) {
+                HStack(spacing: Metrics.iconTextSpacing) {
+                    Image(systemName: config.icon)
+                        .font(.system(size: Metrics.fontSize, weight: .medium))
+                    Text(config.title)
+                        .font(.system(size: Metrics.fontSize, weight: .medium))
+                }
+                // 次要前景:与动作按钮(.primary)拉开一档,强调这是「换选法」不是「做事情」
+                .foregroundStyle(.secondary)
+                .padding(.horizontal, Metrics.paddingH)
+                .frame(height: Metrics.height)
+                .contentShape(Capsule())
+            }
+            .buttonStyle(.plain)
+            .toolbarGlass(in: Capsule())
+            .overlay(
+                Capsule().strokeBorder(Color(nsColor: .separatorColor),
+                                       lineWidth: Metrics.hairline)
+            )
+            .shadow(color: .black.opacity(0.16), radius: 5, y: 2)
+            .modifier(ShakeEffect(phase: shakePhase))
+            .overlay(alignment: .top) { noTextCaption }
+            .accessibilityLabel(config.title)
+            .accessibilityValue(noTextCaptionVisible ? "未识别到文字" : "")
         }
-        .accessibilityElement(children: .contain)
-        .accessibilityLabel("选区工具条")
+    }
+
+    /// 「改选文字」点击:切换失败(框内无文字)→ 摇头 + 浮出说明,选区不动。
+    private func switchToTextTapped() {
+        guard let onSwitchToText, !onSwitchToText() else { return }
+        if !motionReduced {
+            withAnimation(.easeInOut(duration: 0.45)) { shakePhase += 1 }
+        }
+        captionTask?.cancel()
+        withAnimation(.easeOut(duration: 0.15)) { noTextCaptionVisible = true }
+        captionTask = Task { @MainActor in
+            try? await Task.sleep(nanoseconds: 1_600_000_000)
+            guard !Task.isCancelled else { return }
+            withAnimation(.easeOut(duration: 0.25)) { noTextCaptionVisible = false }
+        }
+    }
+
+    /// 浮出说明:chip 上方 8pt 的小玻璃气泡,不参与布局(不会挤动工具条摆位)。
+    @ViewBuilder private var noTextCaption: some View {
+        if noTextCaptionVisible {
+            Text("未识别到文字")
+                .font(.system(size: 11, weight: .medium))
+                .foregroundStyle(.secondary)
+                .padding(.horizontal, 9)
+                .padding(.vertical, 4)
+                .toolbarGlass(in: Capsule())
+                .overlay(
+                    Capsule().strokeBorder(Color(nsColor: .separatorColor),
+                                           lineWidth: Metrics.hairline)
+                )
+                .shadow(color: .black.opacity(0.16), radius: 4, y: 1)
+                .fixedSize()
+                .offset(y: -(Metrics.height - 6))
+                .transition(motionReduced
+                            ? .opacity
+                            : .opacity.combined(with: .move(edge: .bottom)))
+                .allowsHitTesting(false)
+                .accessibilityHidden(true) // 语义由 chip 的 accessibilityValue 承担
+        }
     }
 
     // MARK: - 子视图
@@ -191,21 +297,22 @@ struct SelectionMiniToolbar: View {
 
     // MARK: - 摆位(纯静态函数,调用方定位用)
 
-    /// 估算尺寸:按 kind 的完整按钮集合估算。
+    /// 估算尺寸:按 kind 的完整按钮集合估算(含「改选」chip;编辑展开时 chip 让位)。
     /// 若某回调为 nil,实际渲染会窄于估算——工具条右缘略缩进,
     /// 只是视觉右对齐略松,不影响「不相交/不出屏」保证。
     static func estimatedSize(for kind: MiniToolbarKind, editExpanded: Bool = false) -> CGSize {
         let narrow = Metrics.estimatedButtonContentWidth + Metrics.buttonPaddingH * 2
         let wide = Metrics.estimatedWideButtonContentWidth + Metrics.buttonPaddingH * 2
+        let chip = Metrics.switchChipContentWidth + Metrics.paddingH * 2 + Metrics.switchChipGap
         let width: CGFloat
         switch kind {
-        case .text:  // [翻译][可视化]
-            width = Metrics.paddingH * 2 + narrow + Metrics.hairline + wide
-        case .image where editExpanded: // [编辑][指令输入][↑]
+        case .text:  // [改选图片] [翻译][可视化]
+            width = chip + Metrics.paddingH * 2 + narrow + Metrics.hairline + wide
+        case .image where editExpanded: // [编辑][指令输入][↑](chip 隐藏)
             width = Metrics.paddingH * 2 + narrow + Metrics.hairline
                 + Metrics.editFieldLeadingGap + Metrics.editFieldWidth + Metrics.editSubmitWidth
-        case .image: // [翻译][可视化][编辑]
-            width = Metrics.paddingH * 2 + narrow * 2 + Metrics.hairline * 2 + wide
+        case .image: // [改选文字] [翻译][可视化][编辑]
+            width = chip + Metrics.paddingH * 2 + narrow * 2 + Metrics.hairline * 2 + wide
         }
         return CGSize(width: width, height: Metrics.height)
     }
@@ -268,5 +375,20 @@ struct SelectionMiniToolbar: View {
         // 兜底:全屏级大选区,无法不相交;保证不出屏,贴选区右下角内侧。
         return CGPoint(x: clampedX(selection.maxX - size.width - margin),
                        y: clampedY(selection.maxY - size.height - margin))
+    }
+}
+
+/// 摇头动画(经典「密码错误」水平抖动):phase 每 +1 摇三个来回(±5pt),
+/// 整数静止位 sin = 0,动画结束自动归位无残余位移。
+private struct ShakeEffect: GeometryEffect {
+    var phase: CGFloat
+
+    var animatableData: CGFloat {
+        get { phase }
+        set { phase = newValue }
+    }
+
+    func effectValue(size: CGSize) -> ProjectionTransform {
+        ProjectionTransform(CGAffineTransform(translationX: sin(phase * .pi * 6) * 5, y: 0))
     }
 }
