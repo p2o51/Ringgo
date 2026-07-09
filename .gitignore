@@ -5,3 +5,5 @@ dist/
 *.xcodeproj
 xcuserdata/
 .swiftpm/
+.claude/
+tmp/
