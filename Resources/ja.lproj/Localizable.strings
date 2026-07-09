@@ -218,6 +218,12 @@
 "minitoolbar.submit_edit_a11y" = "編集内容を送信";
 /* a11y label of a highlighted action button, %@ = button title */
 "minitoolbar.button_active" = "%@（実行中。タップで終了）";
+/* F9 barcode text card: copy decoded payload */
+"barcode.copy" = "コピー";
+/* F9 barcode text card: after copy (2s) */
+"barcode.copied" = "コピー済み";
+/* F9 barcode result card a11y label, %@ = host or decoded text */
+"barcode.card_a11y" = "QRコード:%@";
 /* armed state label */
 "confirmopen.confirm" = "開くを確定";
 /* button help when armed */

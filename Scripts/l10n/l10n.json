@@ -126,6 +126,10 @@
     "minitoolbar.submit_edit_a11y":{"zh-Hans": "提交编辑指令", "en": "Submit edit instruction", "ja": "編集内容を送信", "ctx": "a11y label for edit submit button"},
     "minitoolbar.button_active":   {"zh-Hans": "%@(进行中,点按退出)", "en": "%@ (active, tap to exit)", "ja": "%@（実行中。タップで終了）", "ctx": "a11y label of a highlighted action button, %@ = button title"},
 
+    "barcode.copy":                {"zh-Hans": "复制", "en": "Copy", "ja": "コピー", "ctx": "F9 barcode text card: copy decoded payload"},
+    "barcode.copied":              {"zh-Hans": "已复制", "en": "Copied", "ja": "コピー済み", "ctx": "F9 barcode text card: after copy (2s)"},
+    "barcode.card_a11y":           {"zh-Hans": "二维码:%@", "en": "QR code: %@", "ja": "QRコード:%@", "ctx": "F9 barcode result card a11y label, %@ = host or decoded text"},
+
     "confirmopen.confirm":    {"zh-Hans": "确认打开", "en": "Confirm Open", "ja": "開くを確定", "ctx": "armed state label"},
     "confirmopen.help_armed": {"zh-Hans": "再点一次:打开并退出圈选", "en": "Tap again: open and exit Circle to Search", "ja": "もう一度タップ：開いてかこって検索を終了", "ctx": "button help when armed"},
     "confirmopen.a11y_armed": {"zh-Hans": "确认在浏览器中打开", "en": "Confirm opening in browser", "ja": "ブラウザで開くを確定", "ctx": "a11y label when armed"},

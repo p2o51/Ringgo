@@ -74,7 +74,7 @@ private struct URLCard: View {
         .cardChrome()
         .onAppear { preview.load(url) }
         .onDisappear { preview.cancel() }
-        .accessibilityLabel(L10n.f("barcode.card_a11y", "二维码链接:%@", host))
+        .accessibilityLabel(L10n.f("barcode.card_a11y", "二维码:%@", host))
         .accessibilityHint(L10n.t("common.open_in_browser", "在默认浏览器中打开"))
     }
 
@@ -131,7 +131,7 @@ private struct TextCard: View {
         .cardChrome()
         .onDisappear { resetTask?.cancel() }
         .accessibilityElement(children: .combine)
-        .accessibilityLabel(L10n.f("barcode.card_a11y", "二维码链接:%@", payload))
+        .accessibilityLabel(L10n.f("barcode.card_a11y", "二维码:%@", payload))
     }
 
     private var copyButton: some View {

@@ -218,6 +218,12 @@
 "minitoolbar.submit_edit_a11y" = "提交编辑指令";
 /* a11y label of a highlighted action button, %@ = button title */
 "minitoolbar.button_active" = "%@(进行中,点按退出)";
+/* F9 barcode text card: copy decoded payload */
+"barcode.copy" = "复制";
+/* F9 barcode text card: after copy (2s) */
+"barcode.copied" = "已复制";
+/* F9 barcode result card a11y label, %@ = host or decoded text */
+"barcode.card_a11y" = "二维码:%@";
 /* armed state label */
 "confirmopen.confirm" = "确认打开";
 /* button help when armed */

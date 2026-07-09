@@ -218,6 +218,12 @@
 "minitoolbar.submit_edit_a11y" = "Submit edit instruction";
 /* a11y label of a highlighted action button, %@ = button title */
 "minitoolbar.button_active" = "%@ (active, tap to exit)";
+/* F9 barcode text card: copy decoded payload */
+"barcode.copy" = "Copy";
+/* F9 barcode text card: after copy (2s) */
+"barcode.copied" = "Copied";
+/* F9 barcode result card a11y label, %@ = host or decoded text */
+"barcode.card_a11y" = "QR code: %@";
 /* armed state label */
 "confirmopen.confirm" = "Confirm Open";
 /* button help when armed */
