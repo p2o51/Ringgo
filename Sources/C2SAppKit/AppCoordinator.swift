@@ -17,11 +17,13 @@ public final class AppCoordinator: ObservableObject {
     private let hotkeys = HotkeyManager()
     private let multitouch = MultitouchTrigger()
     private let ocr = OCRService()
+    private let barcode = BarcodeService()
     private let search = SearchService()
     private let overlay = OverlayWindowController()
 
     private var previousApp: NSRunningApplication?
     private var ocrTask: Task<Void, Never>?
+    private var barcodeTask: Task<Void, Never>?
     private var speculativeCapture: Task<CaptureResult, Error>?
     private var settingsSink: AnyCancellable?
     private var workspaceSinks: Set<AnyCancellable> = []
@@ -242,6 +244,8 @@ public final class AppCoordinator: ObservableObject {
         guard phase == .overlayActive else { return }
         ocrTask?.cancel()
         ocrTask = nil
+        barcodeTask?.cancel()
+        barcodeTask = nil
         currentCapture = nil
         lastImageSearchRect = nil
         lastLensThumbnail = nil
@@ -429,6 +433,8 @@ public final class AppCoordinator: ObservableObject {
         promptMode = nil
         lensSessionURL = nil // 新上传 = 新会话,旧 vsrid 作废(防可视化/编辑挂错图)
         lastImageSearchRect = overlayRect
+        // F9 二维码检测(纯增量,与下面的 Lens 图搜互不影响)
+        detectBarcode(in: cropped, forRect: overlayRect)
         // 药丸缩略图 = 圈出的图(查询上下文与文字 query 对等)
         lastLensThumbnail = LensService.downscaled(cropped, maxDimension: 240)
         lensAttempt += 1
@@ -444,6 +450,26 @@ public final class AppCoordinator: ObservableObject {
                 self?.performImageSearch(overlayRect: overlayRect)
             }, login: nil), query: nil, queryImage: lastLensThumbnail)
         }
+    }
+
+    /// F9 二维码检测(切片一):在圈选裁剪图上跑 Vision,与 Lens 图搜并行,命中即回填
+    /// 给覆盖层(工具条按钮行下方出卡片)。守卫 `lastImageSearchRect + phase`:迟到的
+    /// 检测若选区已变(快速改框到别处)或已退出覆盖层一律丢弃,不串卡。
+    private func detectBarcode(in image: CGImage, forRect rect: CGRect) {
+        overlay.updateBarcode(nil) // 新选区:先撤旧卡
+        barcodeTask?.cancel()
+        let barcode = self.barcode
+        barcodeTask = Task.detached(priority: .userInitiated) { [weak self] in
+            let result = await barcode.detect(in: image)
+            guard !Task.isCancelled else { return }
+            await self?.applyBarcodeResult(result, forRect: rect)
+        }
+    }
+
+    /// 检测回主线程:选区未变(且仍在覆盖层)才回填,否则丢弃(迟到 = 已被顶掉)。
+    private func applyBarcodeResult(_ result: BarcodeResult?, forRect rect: CGRect) {
+        guard phase == .overlayActive, lastImageSearchRect == rect else { return }
+        overlay.updateBarcode(result)
     }
 
     /// 底部工具条「整屏提问」(安卓同款):整张截图发 Lens,结果页(vsrid)就绪后

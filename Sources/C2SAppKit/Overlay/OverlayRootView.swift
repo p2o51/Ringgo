@@ -276,43 +276,79 @@ struct OverlayRootView: View {
         if case .hidden = sheetModel.content {} // 面板显隐不影响迷你条,仅为读依赖
         // v3:文字 = [翻译][可视化],图片 = [翻译][可视化][编辑];复制统一走 ⌘C(文字/图片皆可)
         if let kind = viewModel.miniToolbarKind, let bounds = viewModel.selectionBounds {
+            // F9:图片选区解出二维码时,在工具条按钮行下方叠加结果卡片(纯增量,文字选区无)
+            let barcode = (kind == .image) ? viewModel.barcodeResult : nil
             let toolbarSize = SelectionMiniToolbar.estimatedSize(
                 for: kind, editExpanded: kind == .image && imageEditExpanded)
-            let origin = SelectionMiniToolbar.placement(selection: bounds, canvas: size, size: toolbarSize)
-            let activeMode = sheetModel.modeChip?.mode
-            switch kind {
-            case .text:
-                SelectionMiniToolbar(
-                    kind: .text,
-                    activeMode: activeMode,
-                    reduceEffects: reduceEffects || reduceMotion,
-                    onTranslate: { onToggleTranslateSelection() },
-                    onVisualize: { onToggleVisualizeSelection() },
-                    onSwitchToImage: { viewModel.switchSelectionToImage() })
-                    .offset(x: origin.x, y: origin.y)
-                    .id("text-\(Int(bounds.minX))-\(Int(bounds.minY))-\(Int(bounds.width))")
-            case .image:
-                SelectionMiniToolbar(
-                    kind: .image,
-                    activeMode: activeMode,
-                    reduceEffects: reduceEffects || reduceMotion,
-                    onTranslate: { onTranslateImage() },
-                    onVisualize: { onVisualizeImage() },
-                    editExpanded: $imageEditExpanded,
-                    onEditSubmit: { onSubmitImageEdit($0) },
-                    onSwitchToText: {
-                        let outcome = await viewModel.switchSelectionToText()
-                        if outcome == .noText { Haptics.align() } // 「没有可选的」轻提示
-                        return outcome
-                    })
-                    .offset(x: origin.x, y: origin.y)
-                    // 展开/收起时宽度与摆位一起动(动画在 offset 之后才盖得到摆位;减弱动态直切)
-                    .animation((reduceMotion || reduceEffects) ? nil
-                               : .spring(response: 0.25, dampingFraction: 0.85),
-                               value: imageEditExpanded)
-                    .id("image-\(Int(bounds.minX))-\(Int(bounds.minY))-\(Int(bounds.width))")
+            // 摆位按「工具条 + 卡片」整体尺寸算 —— 卡片恒在 VStack 底部,
+            // 无论 placement 翻上/翻下/侧移都在按钮行下方。
+            let unitSize = combinedMiniToolbarSize(toolbar: toolbarSize, barcode: barcode)
+            let origin = SelectionMiniToolbar.placement(selection: bounds, canvas: size, size: unitSize)
+            let motionReduced = reduceMotion || reduceEffects
+
+            VStack(alignment: .trailing, spacing: 8) {
+                miniToolbarBar(kind: kind, bounds: bounds)
+                if let barcode {
+                    BarcodeResultCard(result: barcode,
+                                      reduceEffects: motionReduced,
+                                      onOpened: { viewModel.onDismiss() })
+                        // 卡片独立入场(不进 .id,不重放工具条入场):淡入 + 从顶滑出
+                        .transition(motionReduced
+                                    ? .opacity
+                                    : .opacity.combined(with: .move(edge: .top)))
+                }
             }
+            .offset(x: origin.x, y: origin.y)
+            // 卡片出现/消失(高度变) + 侧翻(origin 变)都走弹性,避免解码后工具条瞬移
+            .animation(motionReduced ? .easeOut(duration: 0.15)
+                       : .spring(response: 0.3, dampingFraction: 0.85), value: barcode)
+            .animation(motionReduced ? .easeOut(duration: 0.15)
+                       : .spring(response: 0.3, dampingFraction: 0.85), value: origin)
         }
+    }
+
+    /// 迷你工具条本体(text/image 两套按钮集);摆位与二维码卡片的组合由 miniToolbar 统一处理。
+    @ViewBuilder private func miniToolbarBar(kind: MiniToolbarKind, bounds: CGRect) -> some View {
+        let activeMode = sheetModel.modeChip?.mode
+        switch kind {
+        case .text:
+            SelectionMiniToolbar(
+                kind: .text,
+                activeMode: activeMode,
+                reduceEffects: reduceEffects || reduceMotion,
+                onTranslate: { onToggleTranslateSelection() },
+                onVisualize: { onToggleVisualizeSelection() },
+                onSwitchToImage: { viewModel.switchSelectionToImage() })
+                .id("text-\(Int(bounds.minX))-\(Int(bounds.minY))-\(Int(bounds.width))")
+        case .image:
+            SelectionMiniToolbar(
+                kind: .image,
+                activeMode: activeMode,
+                reduceEffects: reduceEffects || reduceMotion,
+                onTranslate: { onTranslateImage() },
+                onVisualize: { onVisualizeImage() },
+                editExpanded: $imageEditExpanded,
+                onEditSubmit: { onSubmitImageEdit($0) },
+                onSwitchToText: {
+                    let outcome = await viewModel.switchSelectionToText()
+                    if outcome == .noText { Haptics.align() } // 「没有可选的」轻提示
+                    return outcome
+                })
+                // 展开/收起时宽度动画(摆位随 origin 变化由 miniToolbar 的 origin 动画覆盖;减弱动态直切)
+                .animation((reduceMotion || reduceEffects) ? nil
+                           : .spring(response: 0.25, dampingFraction: 0.85),
+                           value: imageEditExpanded)
+                .id("image-\(Int(bounds.minX))-\(Int(bounds.minY))-\(Int(bounds.width))")
+        }
+    }
+
+    /// 「工具条 + 二维码卡片」组合尺寸:宽取较大者(卡片 ≤ 工具条宽,右对齐基准不变),
+    /// 高 = 工具条 + 8 间距 + 卡片。无卡片时原样返回工具条尺寸(零回归)。
+    private func combinedMiniToolbarSize(toolbar: CGSize, barcode: BarcodeResult?) -> CGSize {
+        guard let barcode else { return toolbar }
+        let cardHeight = BarcodeResultCard.height(for: barcode)
+        return CGSize(width: max(toolbar.width, BarcodeResultCard.cardWidth),
+                      height: toolbar.height + 8 + cardHeight)
     }
 
 

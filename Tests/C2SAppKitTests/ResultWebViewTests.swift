@@ -1,7 +1,33 @@
 import XCTest
+import WebKit
 @testable import C2SAppKit
 
 final class ResultWebViewTests: XCTestCase {
+
+    // MARK: - ⌘C 路由:结果面板 WebView 聚焦时放行系统复制(否则被选区复制劫持)
+
+    /// WebView 聚焦时 firstResponder 是内部内容视图(WKWebView 的子视图),
+    /// 沿 superview 链上溯应判定为「在 WebView 内」→ ⌘C 归网页,复制 AI Mode 回答。
+    @MainActor
+    func testResponderInsideWebViewIsDetected() {
+        let webView = WKWebView(frame: .zero)
+        let contentView = NSView(frame: .zero) // 模拟内部 WKContentView
+        webView.addSubview(contentView)
+
+        XCTAssertTrue(OverlayWindowController.responderIsInWebView(contentView),
+                      "WebView 子视图聚焦 = 焦点在网页里,⌘C 必须放行给 WebView")
+        XCTAssertTrue(OverlayWindowController.responderIsInWebView(webView),
+                      "WebView 本身聚焦也算在网页里")
+    }
+
+    /// 覆盖层画布 / 底部输入框等非 WebView 的响应者:不放行,⌘C 归选区复制。
+    @MainActor
+    func testResponderOutsideWebViewIsNotDetected() {
+        XCTAssertFalse(OverlayWindowController.responderIsInWebView(nil))
+        XCTAssertFalse(OverlayWindowController.responderIsInWebView(NSView(frame: .zero)))
+        XCTAssertFalse(OverlayWindowController.responderIsInWebView(NSTextView(frame: .zero)),
+                       "输入框(NSTextView)不是 WebView,走上面的选中长度判定,不走这条")
+    }
 
     func testOnlyLens403IsReportedAsAnonymousAccessBlock() throws {
         let lens = try XCTUnwrap(HTTPURLResponse(

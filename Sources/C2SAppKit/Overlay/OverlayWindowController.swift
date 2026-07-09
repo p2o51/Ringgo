@@ -1,6 +1,7 @@
 import AppKit
 import QuartzCore
 import SwiftUI
+import WebKit
 import C2SCore
 
 /// borderless 窗口默认拿不到键盘焦点,必须重写这两个属性(机制 §3)。
@@ -184,6 +185,12 @@ public final class OverlayWindowController {
         viewModel.updateWords(words)
     }
 
+    /// F9 二维码检测结果发布(主线程调用;nil = 清除,如新选区检测未命中)。
+    public func updateBarcode(_ result: BarcodeResult?) {
+        guard isPresenting else { return }
+        viewModel.barcodeResult = result
+    }
+
     /// 驱动结果面板(query/queryImage = 药丸里的查询上下文:文字或图搜缩略图)。
     public func showResult(_ content: ResultContent, query: String?, queryImage: CGImage? = nil,
                            chip: QueryModeChip? = nil) {
@@ -271,6 +278,18 @@ public final class OverlayWindowController {
 
     // MARK: - 键盘:ESC 取消、⌘C 复制选中文本(均吃掉事件防蜂鸣)
 
+    /// firstResponder 是否落在某个 WKWebView 内(沿 superview 链上溯)。
+    /// WKWebView 聚焦时 window.firstResponder 是它内部的 WKContentView,
+    /// 非 WKWebView 本身,需向上找到外层 WKWebView 才能判定「焦点在结果面板网页里」。
+    static func responderIsInWebView(_ responder: NSResponder?) -> Bool {
+        var view = responder as? NSView
+        while let current = view {
+            if current is WKWebView { return true }
+            view = current.superview
+        }
+        return false
+    }
+
     private func installKeyMonitor() {
         guard keyMonitor == nil else { return }
         keyMonitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { [weak self] event -> NSEvent? in
@@ -289,6 +308,12 @@ public final class OverlayWindowController {
                     // 空选择也放行会把「复制选区文字」整个吞掉(⌘C 落进空输入框,毫无动静)。
                     if let editor = self.window?.firstResponder as? NSTextView,
                        editor.selectedRange().length > 0 {
+                        return
+                    }
+                    // 结果面板 WebView 聚焦 → ⌘C 归 WebView(复制网页/AI Mode 回答的选中文本)。
+                    // WebView 聚焦时 firstResponder 是它内部的 WKContentView(非 NSTextView),
+                    // 不放行会被下面的选区复制劫持 → 用户在结果里选中文字却复制不到。
+                    if Self.responderIsInWebView(self.window?.firstResponder) {
                         return
                     }
                     if let text = self.viewModel.selectedText {

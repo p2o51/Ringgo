@@ -38,6 +38,10 @@ final class SelectionViewModel: ObservableObject {
     @Published private(set) var highlightedWords: [OCRWord] = []
     /// 悬停位置(hover affordance 用,不进手势状态机)。
     @Published var hoverLocation: CGPoint?
+    /// F9 二维码结果(圈选区域解出二维码时,由 coordinator 检测后回填):
+    /// 仅在图片选区(miniToolbarKind == .image)下于工具条按钮行下方渲染成卡片。
+    /// 换选区/退出即清空,防上一次选区的码串到新选区。
+    @Published var barcodeResult: BarcodeResult?
 
     // MARK: - 回调(OverlayWindowController 接线)
 
@@ -103,6 +107,7 @@ final class SelectionViewModel: ObservableObject {
         dragMode = nil
         pendingGesture = nil
         focusedExtras = []
+        barcodeResult = nil
     }
 
     /// OCR 词框到达 → 重建引擎(补刀词并入,见 focusedExtras);
@@ -558,6 +563,7 @@ final class SelectionViewModel: ObservableObject {
         highlightedWords = []
         brushPoints = []
         session = nil
+        barcodeResult = nil
     }
 
     private func atLeast(_ rect: CGRect, minW: CGFloat, minH: CGFloat) -> CGRect {
