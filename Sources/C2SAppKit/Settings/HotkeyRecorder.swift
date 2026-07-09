@@ -22,20 +22,22 @@ struct HotkeyRecorderRow: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 4) {
-            LabeledContent("圈选热键") {
+            LabeledContent(L10n.t("hotkey.label", "圈选热键")) {
                 HStack(spacing: 8) {
                     Button(action: toggleRecording) {
                         recorderWell
                     }
                     .buttonStyle(.plain)
-                    .help(isRecording ? "按 Esc 取消录制" : "点按以更改快捷键")
-                    .accessibilityLabel("圈选热键")
+                    .help(isRecording ? L10n.t("hotkey.help_recording", "按 Esc 取消录制")
+                                      : L10n.t("hotkey.help_idle", "点按以更改快捷键"))
+                    .accessibilityLabel(L10n.t("hotkey.label", "圈选热键"))
                     .accessibilityValue(isRecording
-                                        ? "正在录制"
+                                        ? L10n.t("hotkey.recording", "正在录制")
                                         : HotkeySymbols.spokenDescription(
                                             keyCode: settings.hotkeyKeyCode,
                                             carbonModifiers: settings.hotkeyModifiers))
-                    .accessibilityHint(isRecording ? "按下新的组合键" : "按下以录制新快捷键")
+                    .accessibilityHint(isRecording ? L10n.t("hotkey.hint_recording", "按下新的组合键")
+                                                   : L10n.t("hotkey.hint_idle", "按下以录制新快捷键"))
 
                     if !isDefault {
                         Button {
@@ -45,7 +47,7 @@ struct HotkeyRecorderRow: View {
                             Image(systemName: "arrow.counterclockwise")
                         }
                         .buttonStyle(.borderless)
-                        .help("还原为 ⌘⇧S")
+                        .help(L10n.t("hotkey.reset_help", "还原为 ⌘⇧S"))
                         .transition(.opacity)
                     }
                 }
@@ -67,7 +69,7 @@ struct HotkeyRecorderRow: View {
         Group {
             if isRecording {
                 if modifierPreview.intersection(.deviceIndependentFlagsMask).isEmpty {
-                    Text("输入新快捷键…")
+                    Text(L10n.t("hotkey.enter_new", "输入新快捷键…"))
                         .font(.system(size: 12))
                         .foregroundStyle(.secondary)
                         .frame(minWidth: 112, minHeight: 26)
@@ -108,8 +110,8 @@ struct HotkeyRecorderRow: View {
 
     private var helperText: String {
         if let validationMessage { return validationMessage }
-        if isRecording { return "按下新的组合键；Esc 取消。" }
-        return "在任何应用中按下即可开始圈选。"
+        if isRecording { return L10n.t("hotkey.helper_recording", "按下新的组合键；Esc 取消。") }
+        return L10n.t("hotkey.helper_idle", "在任何应用中按下即可开始圈选。")
     }
 
     private var isDefault: Bool {
@@ -166,7 +168,7 @@ struct HotkeyRecorderRow: View {
         let carbon = HotkeySymbols.carbonModifiers(from: modifierFlags)
         guard carbon != 0 else {
             NSSound.beep()
-            showValidation("全局热键需包含至少一个修饰键（⌘⌥⌃⇧）。")
+            showValidation(L10n.t("hotkey.need_modifier", "全局热键需包含至少一个修饰键（⌘⌥⌃⇧）。"))
             return
         }
 
@@ -262,7 +264,7 @@ enum HotkeySymbols {
         27: "-", 28: "8", 29: "0", 30: "]", 31: "O", 32: "U", 33: "[", 34: "I", 35: "P",
         37: "L", 38: "J", 39: "'", 40: "K", 41: ";", 42: "\\", 43: ",", 44: "/", 45: "N",
         46: "M", 47: ".", 50: "`",
-        36: "↩", 48: "⇥", 49: "空格", 51: "⌫", 53: "⎋", 76: "⌤",
+        36: "↩", 48: "⇥", 51: "⌫", 53: "⎋", 76: "⌤",
         115: "↖", 116: "⇞", 117: "⌦", 119: "↘", 121: "⇟",
         123: "←", 124: "→", 125: "↓", 126: "↑",
         122: "F1", 120: "F2", 99: "F3", 118: "F4", 96: "F5", 97: "F6", 98: "F7",
@@ -271,6 +273,7 @@ enum HotkeySymbols {
     ]
 
     static func keyName(_ code: UInt32) -> String {
-        names[code] ?? "键\(code)"
+        if code == 49 { return L10n.t("key.space", "空格") } // 空格键:随语言显示 Space/スペース
+        return names[code] ?? L10n.f("key.generic", "键%d", Int(code))
     }
 }

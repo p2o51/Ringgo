@@ -55,7 +55,7 @@ struct DetailPanel: View {
             .buttonStyle(.plain)
             .disabled(!model.canGoBack)
             .opacity(model.canGoBack ? 1 : 0.35)
-            .accessibilityLabel("后退")
+            .accessibilityLabel(L10n.t("detail.back", "后退"))
 
             Button { model.goForward() } label: {
                 Image(systemName: "chevron.forward")
@@ -64,7 +64,7 @@ struct DetailPanel: View {
             .buttonStyle(.plain)
             .disabled(!model.canGoForward)
             .opacity(model.canGoForward ? 1 : 0.35)
-            .accessibilityLabel("前进")
+            .accessibilityLabel(L10n.t("detail.forward", "前进"))
 
             if model.isLoading {
                 ProgressView()
@@ -83,7 +83,7 @@ struct DetailPanel: View {
                     .foregroundStyle(.secondary)
             }
             .buttonStyle(.plain)
-            .accessibilityLabel("关闭详情")
+            .accessibilityLabel(L10n.t("detail.close", "关闭详情"))
         }
         .padding(.horizontal, 12)
         .frame(height: 34)

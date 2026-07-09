@@ -282,7 +282,7 @@ public final class AppCoordinator: ObservableObject {
 
     private func performSelectionTranslation(of text: String) {
         let targetName = currentTranslationTargetName()
-        let prompt = "将下面的文字翻译成\(targetName):\n\n\(text)"
+        let prompt = L10n.f("prompt.translate_text", "将下面的文字翻译成%1$@:\n\n%2$@", targetName, text)
         guard let url = SearchURLBuilder.googleSearch(query: prompt,
                                                       viewport: overlay.viewportSize,
                                                       aiMode: true) else { return }
@@ -290,7 +290,7 @@ public final class AppCoordinator: ObservableObject {
         lastTextQuery = text // 药丸保持原文,可编辑后重译
         overlay.showResult(.web(url), query: text,
                            chip: QueryModeChip(mode: .translate, icon: "translate",
-                                               label: "翻译 · \(targetName)"))
+                                               label: L10n.f("chip.translate", "翻译 · %@", targetName)))
     }
 
     // MARK: - F15 可视化 / 图片编辑(2026-07-03:AI Mode 让 Gemini 出图表或 nano banana 出图)
@@ -308,8 +308,9 @@ public final class AppCoordinator: ObservableObject {
     }
 
     private func performSelectionVisualization(of text: String) {
-        let prompt = "请可视化下面的内容:适合数据或结构就生成可视化图表"
-            + "(信息图/流程图/对比表等),更适合画面就用 nano banana 生成一张图片:\n\n\(text)"
+        let prompt = L10n.f("prompt.visualize_text",
+                            "请可视化下面的内容:适合数据或结构就生成可视化图表(信息图/流程图/对比表等),更适合画面就用 nano banana 生成一张图片:\n\n%@",
+                            text)
         guard let url = SearchURLBuilder.googleSearch(query: prompt,
                                                       viewport: overlay.viewportSize,
                                                       aiMode: true) else { return }
@@ -323,10 +324,11 @@ public final class AppCoordinator: ObservableObject {
     /// 不设 promptMode:后续在搜索框输入 = 同会话 AI Mode 追问(multisearch 路由)。
     private func translateImageSelection() {
         let targetName = currentTranslationTargetName()
-        let prompt = "请把这张图片里的所有文字翻译成\(targetName),按原文的结构和顺序输出译文。"
+        let prompt = L10n.f("prompt.translate_image",
+                            "请把这张图片里的所有文字翻译成%@,按原文的结构和顺序输出译文。", targetName)
         fireLensPrompt(prompt, pillText: nil,
                        chip: QueryModeChip(mode: .translate, icon: "translate",
-                                           label: "翻译 · \(targetName)"),
+                                           label: L10n.f("chip.translate", "翻译 · %@", targetName)),
                        aiMode: true)
     }
 
@@ -334,8 +336,8 @@ public final class AppCoordinator: ObservableObject {
     /// 挂可视化 prompt + AI Mode(图随会话参数保留,Gemini 能看到圈出的图)。
     /// 不设 promptMode:后续在搜索框输入 = 同会话 AI Mode 追问(multisearch 路由)。
     private func visualizeImageSelection() {
-        let prompt = "请可视化这张图片的内容:适合数据或结构就生成可视化图表"
-            + "(信息图/流程图/对比表等),更适合画面就用 nano banana 生成一张新图片来呈现。"
+        let prompt = L10n.t("prompt.visualize_image",
+                            "请可视化这张图片的内容:适合数据或结构就生成可视化图表(信息图/流程图/对比表等),更适合画面就用 nano banana 生成一张新图片来呈现。")
         fireLensPrompt(prompt, pillText: nil, chip: Self.visualizeChip, aiMode: true)
     }
 
@@ -346,14 +348,19 @@ public final class AppCoordinator: ObservableObject {
         let q = instruction.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !q.isEmpty else { return }
         promptMode = .editImage
-        let prompt = "请用 nano banana 编辑这张图片,直接生成编辑后的图片。编辑要求:\(q)"
+        let prompt = L10n.f("prompt.edit_image",
+                            "请用 nano banana 编辑这张图片,直接生成编辑后的图片。编辑要求:%@", q)
         fireLensPrompt(prompt, pillText: q, chip: Self.editChip, aiMode: true)
     }
 
-    private static let visualizeChip =
-        QueryModeChip(mode: .visualize, icon: "chart.bar.xaxis", label: "可视化")
-    private static let editChip =
-        QueryModeChip(mode: .editImage, icon: "wand.and.stars", label: "编辑 · Nano Banana")
+    private static var visualizeChip: QueryModeChip {
+        QueryModeChip(mode: .visualize, icon: "chart.bar.xaxis",
+                      label: L10n.t("common.visualize", "可视化"))
+    }
+    private static var editChip: QueryModeChip {
+        QueryModeChip(mode: .editImage, icon: "wand.and.stars",
+                      label: L10n.t("chip.edit", "编辑 · Nano Banana"))
+    }
 
     /// 在当前圈图的 Lens 会话上挂 prompt 型查询:会话 URL(vsrid)已就绪 → 立即
     /// multisearch;未就绪(上传还在飞)→ 挂起,handleLensPageURL 就绪后自动发出。
@@ -431,7 +438,8 @@ public final class AppCoordinator: ObservableObject {
             overlay.showResult(.lensUpload(payload), query: nil, queryImage: lastLensThumbnail)
         } catch {
             // 原生错误卡 + 重试;绝不拿错误串去搜(features §8)
-            let message = (error as? LocalizedError)?.errorDescription ?? "图像搜索失败,请重试。"
+            let message = (error as? LocalizedError)?.errorDescription
+                ?? L10n.t("error.image_search_failed", "图像搜索失败,请重试。")
             overlay.showResult(.error(message: message, retry: { [weak self] in
                 self?.performImageSearch(overlayRect: overlayRect)
             }, login: nil), query: nil, queryImage: lastLensThumbnail)
@@ -455,7 +463,8 @@ public final class AppCoordinator: ObservableObject {
             let payload = try search.lensUploadPayload(for: cap.image, attempt: lensAttempt)
             overlay.showResult(.lensUpload(payload), query: q, queryImage: lastLensThumbnail)
         } catch {
-            let message = (error as? LocalizedError)?.errorDescription ?? "图像搜索失败,请重试。"
+            let message = (error as? LocalizedError)?.errorDescription
+                ?? L10n.t("error.image_search_failed", "图像搜索失败,请重试。")
             overlay.showResult(.error(message: message, retry: { [weak self] in
                 self?.askAboutScreen(q)
             }, login: nil), query: q, queryImage: lastLensThumbnail)
@@ -533,7 +542,7 @@ public final class AppCoordinator: ObservableObject {
         lastHotkeyErrorMessage = message
         NSApp.activate(ignoringOtherApps: true)
         let alert = NSAlert()
-        alert.messageText = "热键注册失败"
+        alert.messageText = L10n.t("alert.hotkey_failed_title", "热键注册失败")
         alert.informativeText = message
         alert.alertStyle = .warning
         alert.runModal()
@@ -542,14 +551,15 @@ public final class AppCoordinator: ObservableObject {
     private func showCaptureError(_ error: Error) {
         NSApp.activate(ignoringOtherApps: true)
         let alert = NSAlert()
-        alert.messageText = "无法截取屏幕"
+        alert.messageText = L10n.t("alert.capture_failed_title", "无法截取屏幕")
         alert.alertStyle = .warning
         if let e = error as? CaptureService.CaptureError, case .noPermission = e {
             // TCC 既定行为:授权只对之后新启动的进程生效,已运行的进程必须重启
-            alert.informativeText = "请在「系统设置 → 隐私与安全性 → 屏幕录制」中允许 Ringgo。\n若已允许,需要重新启动 Ringgo 才会生效。"
-            alert.addButton(withTitle: "打开系统设置")
-            alert.addButton(withTitle: "重新启动 Ringgo")
-            alert.addButton(withTitle: "取消")
+            alert.informativeText = L10n.t("alert.capture_no_permission_body",
+                                           "请在「系统设置 → 隐私与安全性 → 屏幕录制」中允许 Ringgo。\n若已允许,需要重新启动 Ringgo 才会生效。")
+            alert.addButton(withTitle: L10n.t("alert.open_system_settings", "打开系统设置"))
+            alert.addButton(withTitle: L10n.t("common.restart_ringgo", "重新启动 Ringgo"))
+            alert.addButton(withTitle: L10n.t("common.cancel", "取消"))
             switch alert.runModal() {
             case .alertFirstButtonReturn:
                 if let url = URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_ScreenCapture") {
@@ -585,9 +595,9 @@ public final class AppCoordinator: ObservableObject {
                     // 新实例未真正启动时保留当前进程，避免“重新启动”变成单纯退出。
                     completion?(false)
                     let alert = NSAlert()
-                    alert.messageText = "无法重新启动 Ringgo"
+                    alert.messageText = L10n.t("alert.relaunch_failed_title", "无法重新启动 Ringgo")
                     alert.informativeText = error?.localizedDescription
-                        ?? "系统没有启动新的 Ringgo 实例，请手动退出后重新打开应用。"
+                        ?? L10n.t("alert.relaunch_failed_body", "系统没有启动新的 Ringgo 实例，请手动退出后重新打开应用。")
                     alert.alertStyle = .warning
                     alert.runModal()
                 }

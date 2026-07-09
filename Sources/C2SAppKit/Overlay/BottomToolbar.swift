@@ -60,7 +60,7 @@ struct BottomToolbar: View {
             Image(systemName: "magnifyingglass")
                 .font(.system(size: 15, weight: .medium))
                 .foregroundStyle(.secondary)
-            TextField("搜索屏幕内容,或直接提问…", text: $question)
+            TextField(L10n.t("bottombar.search_placeholder", "搜索屏幕内容,或直接提问…"), text: $question)
                 .textFieldStyle(.plain)
                 .font(.system(size: 15))
                 .focused($fieldFocused)
@@ -71,8 +71,8 @@ struct BottomToolbar: View {
                     .foregroundStyle(.secondary)
             }
             .buttonStyle(.plain)
-            .help("听写(需在系统设置开启)")
-            .accessibilityLabel("开始听写")
+            .help(L10n.t("bottombar.dictation_help", "听写(需在系统设置开启)"))
+            .accessibilityLabel(L10n.t("bottombar.dictation_a11y", "开始听写"))
         }
         .padding(.horizontal, 16)
         .frame(width: pillWidth, height: Self.barHeight)
@@ -104,9 +104,9 @@ struct BottomToolbar: View {
         .shadow(color: .black.opacity(0.18), radius: 12, y: 4)
         .disabled(!translationAvailable)
         .help(translationAvailable
-              ? "翻译整屏(\(currentTarget.displayName));悬停可切换目标语言"
-              : "需要 macOS 15 或更高版本")
-        .accessibilityLabel("翻译整屏为\(currentTarget.displayName)")
+              ? L10n.f("bottombar.translate_help", "翻译整屏(%@);悬停可切换目标语言", currentTarget.displayName)
+              : L10n.t("common.needs_macos15", "需要 macOS 15 或更高版本"))
+        .accessibilityLabel(L10n.f("bottombar.translate_a11y", "翻译整屏为%@", currentTarget.displayName))
         .onHover(perform: hoverChanged)
     }
 

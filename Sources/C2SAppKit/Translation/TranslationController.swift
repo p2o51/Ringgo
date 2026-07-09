@@ -71,7 +71,7 @@ final class TranslationController: ObservableObject {
         pendingTarget = targetCode
         plates = []
         guard !usable.isEmpty else {
-            state = .failed("所选内容没有可翻译的文字")
+            state = .failed(L10n.t("translate.no_translatable", "所选内容没有可翻译的文字"))
             return
         }
         state = .preparing
@@ -85,7 +85,8 @@ final class TranslationController: ObservableObject {
 
         if let source, source.minimalIdentifier.hasPrefix(target.minimalIdentifier)
             || target.minimalIdentifier.hasPrefix(source.minimalIdentifier) {
-            state = .failed("内容看起来已经是\(Self.displayName(of: target)),换个目标语言试试")
+            state = .failed(L10n.f("translate.already_target", "内容看起来已经是%@,换个目标语言试试",
+                                   Self.displayName(of: target)))
             return
         }
 
@@ -112,7 +113,9 @@ final class TranslationController: ObservableObject {
                     self.activateConfiguration(source: nil, target: target)
                 }
             case .unsupported:
-                self.state = .failed("暂不支持 \(Self.displayName(of: source ?? target)) → \(Self.displayName(of: target)) 的翻译")
+                self.state = .failed(L10n.f("translate.unsupported", "暂不支持 %1$@ → %2$@ 的翻译",
+                                            Self.displayName(of: source ?? target),
+                                            Self.displayName(of: target)))
             @unknown default:
                 self.activateConfiguration(source: source, target: target)
             }
@@ -156,7 +159,7 @@ final class TranslationController: ObservableObject {
         let window = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 380, height: 150),
                               styleMask: [.titled, .closable],
                               backing: .buffered, defer: false)
-        window.title = "下载翻译模型"
+        window.title = L10n.t("translate.download_window_title", "下载翻译模型")
         window.level = .screenSaver // 得压过覆盖层,不然弹在冻结屏底下
         window.isReleasedWhenClosed = false
         window.center()
@@ -167,7 +170,7 @@ final class TranslationController: ObservableObject {
             if success {
                 self.retry() // 模型已装,重跑会走 installed 直翻
             } else {
-                self.state = .failed("模型下载未完成")
+                self.state = .failed(L10n.t("translate.download_incomplete", "模型下载未完成"))
             }
         }
         window.contentView = NSHostingView(rootView: host)
@@ -258,7 +261,7 @@ private enum TranslationPlumbingError: LocalizedError {
     var errorDescription: String? {
         switch self {
         case .identifierMismatch:
-            return "翻译结果缺少行标识,无法回贴原文位置"
+            return L10n.t("translate.plumbing_error", "翻译结果缺少行标识,无法回贴原文位置")
         }
     }
 }
@@ -291,13 +294,13 @@ private struct TranslationDownloadView: View {
     let onDone: (Bool) -> Void
 
     @State private var configuration: TranslationSession.Configuration?
-    @State private var message = "正在请求下载…"
+    @State private var message = L10n.t("translate.requesting_download", "正在请求下载…")
 
     var body: some View {
         VStack(spacing: 12) {
             ProgressView()
                 .controlSize(.small)
-            Text("正在准备 \(desc) 翻译模型")
+            Text(L10n.f("translate.preparing_model", "正在准备 %@ 翻译模型", desc))
                 .font(.callout)
             Text(message)
                 .font(.caption)

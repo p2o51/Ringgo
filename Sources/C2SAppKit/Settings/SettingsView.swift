@@ -15,15 +15,15 @@ public struct SettingsView: View {
     public var body: some View {
         TabView {
             GeneralTab()
-                .tabItem { Label("通用", systemImage: "gearshape") }
+                .tabItem { Label(L10n.t("settings.tab.general", "通用"), systemImage: "gearshape") }
             AppearanceTab()
-                .tabItem { Label("外观", systemImage: "circle.lefthalf.filled") }
+                .tabItem { Label(L10n.t("settings.tab.appearance", "外观"), systemImage: "circle.lefthalf.filled") }
             SearchTab()
-                .tabItem { Label("搜索", systemImage: "magnifyingglass") }
+                .tabItem { Label(L10n.t("settings.tab.search", "搜索"), systemImage: "magnifyingglass") }
             PermissionsTab()
-                .tabItem { Label("权限", systemImage: "lock.shield") }
+                .tabItem { Label(L10n.t("settings.tab.permissions", "权限"), systemImage: "lock.shield") }
             AboutTab()
-                .tabItem { Label("关于", systemImage: "info.circle") }
+                .tabItem { Label(L10n.t("settings.tab.about", "关于"), systemImage: "info.circle") }
         }
         .frame(width: 560, height: 430)
     }
@@ -39,31 +39,31 @@ private struct GeneralTab: View {
 
     var body: some View {
         Form {
-            Section("圈选") {
+            Section(L10n.t("settings.general.section.capture", "圈选")) {
                 HotkeyRecorderRow()
             }
 
-            Section("更多唤起方式") {
+            Section(L10n.t("settings.general.section.more_triggers", "更多唤起方式")) {
                 VStack(alignment: .leading, spacing: 3) {
-                    Toggle("蓄力唤起", isOn: $settings.chargeEnabled)
-                    Text("按住 ⌘⇧ 约 250 毫秒唤起；阈值前松开即取消。")
+                    Toggle(L10n.t("settings.charge.toggle", "蓄力唤起"), isOn: $settings.chargeEnabled)
+                    Text(L10n.t("settings.charge.caption", "按住 ⌘⇧ 约 250 毫秒唤起；阈值前松开即取消。"))
                         .settingsCaption()
                 }
 
                 VStack(alignment: .leading, spacing: 5) {
-                    Toggle("双击 Shift 唤起", isOn: $settings.doubleShiftEnabled)
-                    Text("可选能力，需要辅助功能权限；开启时才会向系统申请。")
+                    Toggle(L10n.t("settings.double_shift.toggle", "双击 Shift 唤起"), isOn: $settings.doubleShiftEnabled)
+                    Text(L10n.t("settings.double_shift.caption", "可选能力，需要辅助功能权限；开启时才会向系统申请。"))
                         .settingsCaption()
 
                     if settings.doubleShiftEnabled && !axTrusted {
                         HStack(spacing: 7) {
                             Image(systemName: "exclamationmark.triangle.fill")
                                 .foregroundStyle(Color(nsColor: .systemYellow))
-                            Text("尚未授予辅助功能权限")
+                            Text(L10n.t("settings.double_shift.no_ax", "尚未授予辅助功能权限"))
                                 .font(.caption)
                                 .foregroundStyle(.secondary)
                             Spacer()
-                            Button("前往授权…") {
+                            Button(L10n.t("common.go_authorize", "前往授权…")) {
                                 openSystemSettings(
                                     "x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility"
                                 )
@@ -74,8 +74,8 @@ private struct GeneralTab: View {
                 }
 
                 VStack(alignment: .leading, spacing: 5) {
-                    Toggle("三指双击触控板（实验性）", isOn: $settings.multitouchEnabled)
-                    Text("在任意 App 前台连续三指轻点两次。无需辅助功能权限；可能与系统三指手势冲突。")
+                    Toggle(L10n.t("settings.multitouch.toggle", "三指双击触控板（实验性）"), isOn: $settings.multitouchEnabled)
+                    Text(L10n.t("settings.multitouch.caption", "在任意 App 前台连续三指轻点两次。无需辅助功能权限；可能与系统三指手势冲突。"))
                         .settingsCaption()
 
                     if settings.multitouchEnabled {
@@ -86,10 +86,10 @@ private struct GeneralTab: View {
                 }
             }
 
-            Section("启动") {
+            Section(L10n.t("settings.general.section.launch", "启动")) {
                 VStack(alignment: .leading, spacing: 3) {
-                    Toggle("登录时启动 Ringgo", isOn: $settings.launchAtLogin)
-                    Text("登录 Mac 时在菜单栏静默启动。")
+                    Toggle(L10n.t("settings.launch_at_login.toggle", "登录时启动 Ringgo"), isOn: $settings.launchAtLogin)
+                    Text(L10n.t("settings.launch_at_login.caption", "登录 Mac 时在菜单栏静默启动。"))
                         .settingsCaption()
                     if let hint = settings.launchAtLoginError {
                         Text(hint)
@@ -127,13 +127,13 @@ private struct MultitouchStatusRow: View {
             case .active(let deviceCount):
                 Image(systemName: "checkmark.circle.fill")
                     .foregroundStyle(Color.green)
-                Text("已连接 \(deviceCount) 个触控板")
+                Text(L10n.f("settings.multitouch.connected", "已连接 %d 个触控板", deviceCount))
                     .font(.caption)
                     .foregroundStyle(.secondary)
             case .sleeping:
                 ProgressView()
                     .controlSize(.small)
-                Text("睡眠中，唤醒后自动重连")
+                Text(L10n.t("settings.multitouch.sleeping", "睡眠中，唤醒后自动重连"))
                     .font(.caption)
                     .foregroundStyle(.secondary)
             case .unavailable(let message):
@@ -144,7 +144,7 @@ private struct MultitouchStatusRow: View {
                     .foregroundStyle(.secondary)
                     .lineLimit(2)
                 Spacer()
-                Button("重试", action: retry)
+                Button(L10n.t("common.retry", "重试"), action: retry)
                     .controlSize(.small)
             }
         }
@@ -159,7 +159,7 @@ private struct AppearanceTab: View {
 
     var body: some View {
         Form {
-            Section("外观") {
+            Section(L10n.t("settings.tab.appearance", "外观")) {
                 HStack(spacing: 22) {
                     ForEach(SettingsStore.Appearance.allCases) { appearance in
                         Button {
@@ -189,8 +189,8 @@ private struct AppearanceTab: View {
 
             Section {
                 VStack(alignment: .leading, spacing: 3) {
-                    Toggle("减弱动态效果", isOn: $settings.reduceEffects)
-                    Text("关闭微光游走、涟漪等装饰性动画，面板改用淡入淡出。")
+                    Toggle(L10n.t("settings.reduce_effects.toggle", "减弱动态效果"), isOn: $settings.reduceEffects)
+                    Text(L10n.t("settings.reduce_effects.caption", "关闭微光游走、涟漪等装饰性动画，面板改用淡入淡出。"))
                         .settingsCaption()
                 }
             }
@@ -270,32 +270,33 @@ private struct SearchTab: View {
 
     var body: some View {
         Form {
-            Section("搜索") {
+            Section(L10n.t("settings.tab.search", "搜索")) {
                 VStack(alignment: .leading, spacing: 3) {
-                    LabeledContent("默认引擎", value: "Google")
-                    Text("目前支持 Google，更多引擎仍在计划中。")
+                    LabeledContent(L10n.t("settings.search.default_engine", "默认引擎"), value: "Google")
+                    Text(L10n.t("settings.search.engine_caption", "目前支持 Google，更多引擎仍在计划中。"))
                         .settingsCaption()
                 }
             }
 
-            Section("文字识别") {
+            Section(L10n.t("settings.search.ocr_section", "文字识别")) {
                 VStack(alignment: .leading, spacing: 3) {
-                    LabeledContent("OCR 语言", value: "自动检测")
-                    Text("由 Apple Vision 在本机识别，支持中、英、日、韩等语言。")
+                    LabeledContent(L10n.t("settings.search.ocr_language", "OCR 语言"),
+                                   value: L10n.t("settings.search.ocr_auto", "自动检测"))
+                    Text(L10n.t("settings.search.ocr_caption", "由 Apple Vision 在本机识别，支持中、英、日、韩等语言。"))
                         .settingsCaption()
                 }
             }
 
-            Section("翻译") {
-                Picker("翻译成", selection: $settings.translationTargetCode) {
-                    Text("跟随系统（\(systemLanguageName)）").tag("")
+            Section(L10n.t("settings.search.translation_section", "翻译")) {
+                Picker(L10n.t("settings.search.translate_to", "翻译成"), selection: $settings.translationTargetCode) {
+                    Text(L10n.f("settings.search.follow_system", "跟随系统（%@）", systemLanguageName)).tag("")
                     Divider()
                     ForEach(languageOptions) { option in
                         Text(option.displayName).tag(option.id)
                     }
                 }
 
-                Text("圈选文字或图片后的翻译目标；与圈选工具条保持同步。整屏翻译需要 macOS 15 或更高版本。")
+                Text(L10n.t("settings.search.translation_caption", "圈选文字或图片后的翻译目标；与圈选工具条保持同步。整屏翻译需要 macOS 15 或更高版本。"))
                     .settingsCaption()
             }
         }
@@ -315,13 +316,13 @@ private struct PermissionsTab: View {
 
     var body: some View {
         Form {
-            Section("屏幕录制") {
+            Section(L10n.t("settings.perm.screen_section", "屏幕录制")) {
                 PermissionRow(
                     icon: "rectangle.dashed.badge.record",
-                    title: "屏幕录制",
-                    detail: "圈选时截取一帧当前屏幕；不录像，也不会自动上传。",
+                    title: L10n.t("settings.perm.screen_title", "屏幕录制"),
+                    detail: L10n.t("settings.perm.screen_detail", "圈选时截取一帧当前屏幕；不录像，也不会自动上传。"),
                     granted: screenGranted,
-                    actionTitle: "前往授权…"
+                    actionTitle: L10n.t("common.go_authorize", "前往授权…")
                 ) {
                     screenPromptShown = true
                     openSystemSettings(
@@ -333,10 +334,10 @@ private struct PermissionsTab: View {
                     HStack(spacing: 7) {
                         Image(systemName: "exclamationmark.triangle.fill")
                             .foregroundStyle(Color(nsColor: .systemYellow))
-                        Text("允许后需要重新启动 Ringgo 才会生效。")
+                        Text(L10n.t("settings.perm.screen_restart_hint", "允许后需要重新启动 Ringgo 才会生效。"))
                             .settingsCaption()
                         Spacer()
-                        Button("重新启动 Ringgo") {
+                        Button(L10n.t("common.restart_ringgo", "重新启动 Ringgo")) {
                             coordinator.relaunch()
                         }
                         .controlSize(.small)
@@ -345,13 +346,13 @@ private struct PermissionsTab: View {
             }
 
             if settings.doubleShiftEnabled {
-                Section("辅助功能") {
+                Section(L10n.t("settings.perm.ax_section", "辅助功能")) {
                     PermissionRow(
                         icon: "accessibility",
-                        title: "辅助功能",
-                        detail: "仅「双击 Shift 唤起」需要；主热键与蓄力唤起不需要。",
+                        title: L10n.t("settings.perm.ax_title", "辅助功能"),
+                        detail: L10n.t("settings.perm.ax_detail", "仅「双击 Shift 唤起」需要；主热键与蓄力唤起不需要。"),
                         granted: axTrusted,
-                        actionTitle: "前往授权…"
+                        actionTitle: L10n.t("common.go_authorize", "前往授权…")
                     ) {
                         openSystemSettings(
                             "x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility"
@@ -397,7 +398,7 @@ private struct PermissionRow: View {
             Spacer(minLength: 12)
 
             if granted {
-                Label("已授权", systemImage: "checkmark.circle.fill")
+                Label(L10n.t("common.granted", "已授权"), systemImage: "checkmark.circle.fill")
                     .font(.system(size: 11, weight: .medium))
                     .foregroundStyle(Color.green)
             } else {
@@ -417,7 +418,7 @@ private struct AboutTab: View {
 
     private var version: String {
         (Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String)
-            ?? "开发构建"
+            ?? L10n.t("settings.about.dev_build", "开发构建")
     }
 
     var body: some View {
@@ -429,11 +430,11 @@ private struct AboutTab: View {
 
             Text("Ringgo")
                 .font(.title2.weight(.semibold))
-            Text("版本 \(version)")
+            Text(L10n.f("settings.about.version", "版本 %@", version))
                 .font(.callout)
                 .foregroundStyle(.secondary)
 
-            Button("查看欢迎引导") {
+            Button(L10n.t("settings.about.show_welcome", "查看欢迎引导")) {
                 welcome.show()
             }
             .padding(.top, 8)

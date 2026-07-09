@@ -12,7 +12,7 @@ public struct MenuBarMenu: View {
 
     public var body: some View {
         // 快捷键仅作菜单展示;真实全局热键由 HotkeyManager(Carbon)注册
-        Button("立即圈选") { coordinator.captureNow() }
+        Button(L10n.t("menu.capture_now", "立即圈选")) { coordinator.captureNow() }
             .keyboardShortcut("s", modifiers: [.command, .shift])
             // 菜单一打开就预热抓屏管线(features §F1 hover 预热)
             .onAppear { coordinator.prewarmCapture() }
@@ -23,15 +23,16 @@ public struct MenuBarMenu: View {
             Button {
                 welcome.show(step: .setup)
             } label: {
-                Label("需要屏幕录制权限…", systemImage: "exclamationmark.triangle")
+                Label(L10n.t("menu.needs_screen_permission", "需要屏幕录制权限…"),
+                      systemImage: "exclamationmark.triangle")
             }
         }
 
-        Button("设置…") { settingsWindow.show() }
-        Button("欢迎引导…") { welcome.show() }
+        Button(L10n.t("menu.settings", "设置…")) { settingsWindow.show() }
+        Button(L10n.t("menu.welcome_guide", "欢迎引导…")) { welcome.show() }
 
         Divider()
 
-        Button("退出 Ringgo") { NSApplication.shared.terminate(nil) }
+        Button(L10n.t("menu.quit", "退出 Ringgo")) { NSApplication.shared.terminate(nil) }
     }
 }

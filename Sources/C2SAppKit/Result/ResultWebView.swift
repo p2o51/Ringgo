@@ -13,12 +13,13 @@ final class ContextMenuWebView: WKWebView {
     override func willOpenMenu(_ menu: NSMenu, with event: NSEvent) {
         super.willOpenMenu(menu, with: event)
         guard lastContextLink != nil else { return } // 右键不在链接上 → 原菜单
-        let item = NSMenuItem(title: "在默认浏览器中打开",
+        let openTitle = L10n.t("common.open_in_browser", "在默认浏览器中打开")
+        let item = NSMenuItem(title: openTitle,
                               action: #selector(openContextLinkInBrowser(_:)),
                               keyEquivalent: "")
         item.target = self
         item.image = NSImage(systemSymbolName: "arrow.up.forward.app",
-                             accessibilityDescription: "在默认浏览器中打开")
+                             accessibilityDescription: openTitle)
         // 插在系统「打开链接」之后;找不到就置顶
         let anchor = menu.items.firstIndex {
             $0.identifier?.rawValue == "WKMenuItemIdentifierOpenLink"
@@ -207,7 +208,7 @@ struct ResultWebView: NSViewRepresentable {
                ResultWebView.shouldTreatAsLensAccessBlock(http),
                parent.onBlocked != nil {
                 parent.isLoading = false
-                parent.onBlocked?("Google 拒绝了匿名访问(403)。在面板里登录一次 Google 后即可正常识图。")
+                parent.onBlocked?(L10n.t("result.blocked_403", "Google 拒绝了匿名访问(403)。在面板里登录一次 Google 后即可正常识图。"))
                 decisionHandler(.cancel)
                 return
             }
@@ -244,7 +245,7 @@ struct ResultWebView: NSViewRepresentable {
             guard parent.onFailure != nil,
                   ResultWebView.shouldReportLensNavigationFailure(error, currentURL: webView.url)
             else { return }
-            parent.onFailure?("图像搜索网络连接失败：\(error.localizedDescription)")
+            parent.onFailure?(L10n.f("result.image_search_network_failed", "图像搜索网络连接失败：%@", error.localizedDescription))
         }
     }
 

@@ -1,0 +1,7 @@
+/* Ringgo — generated from Scripts/l10n/l10n.json. */
+
+"CFBundleDisplayName" = "Ringgo";
+"CFBundleName" = "Ringgo";
+"NSCalendarsUsageDescription" = "扫描到日程二维码(vEvent)时,Ringgo 需要访问日历来帮你添加日程。";
+"NSContactsUsageDescription" = "扫描到联系人二维码(vCard)时,Ringgo 需要访问通讯录来帮你保存联系人。";
+"NSScreenCaptureUsageDescription" = "Ringgo 需要屏幕录制权限来截取当前屏幕,供圈选搜索使用。截图只在本机处理,不会自动上传。";

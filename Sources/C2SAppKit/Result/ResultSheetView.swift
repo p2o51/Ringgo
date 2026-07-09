@@ -211,8 +211,8 @@ struct ResultSheetView: View {
                 ConfirmOpenButton(
                     urlProvider: { model.currentPageURL },
                     disabledReason: isLensContent
-                        ? "Lens 结果与本面板会话绑定,外部浏览器打开会失效"
-                        : (model.currentPageURL == nil ? "页面尚未加载" : nil),
+                        ? L10n.t("result.lens_bound_reason", "Lens 结果与本面板会话绑定,外部浏览器打开会失效")
+                        : (model.currentPageURL == nil ? L10n.t("result.page_not_loaded", "页面尚未加载") : nil),
                     onOpened: { model.onDismiss?() }) // 打开即退出覆盖层,浏览器就在眼前
                     .padding(.leading, 10)
                 Spacer()
@@ -226,14 +226,14 @@ struct ResultSheetView: View {
                 }
                 .buttonStyle(.plain)
                 .padding(.trailing, 10)
-                .accessibilityLabel("退出圈选")
+                .accessibilityLabel(L10n.t("common.exit_selection", "退出圈选"))
             }
         }
         .frame(height: 30)
         .frame(maxWidth: .infinity)
         .contentShape(Rectangle())
         .gesture(moveDrag(container: container, panel: panel))
-        .accessibilityHint("拖动可移动面板")
+        .accessibilityHint(L10n.t("result.drag_hint", "拖动可移动面板"))
     }
 
     /// 拖动坐标系必须用 .global:手势挂在「跟着拖拽移动的视图」上,
@@ -305,8 +305,8 @@ struct ResultSheetView: View {
 
     /// 占位符按模式:编辑图片 = 指令输入;图搜 = 追加条件;其余 = 搜索。
     private var pillPlaceholder: String {
-        if model.modeChip?.mode == .editImage { return "描述要怎么改这张图…" }
-        return model.queryImage != nil ? "添加到搜索" : "搜索"
+        if model.modeChip?.mode == .editImage { return L10n.t("common.edit_placeholder", "描述要怎么改这张图…") }
+        return model.queryImage != nil ? L10n.t("result.add_to_search", "添加到搜索") : L10n.t("common.search", "搜索")
     }
 
     private func submitQuery() {
@@ -370,11 +370,11 @@ struct ResultSheetView: View {
                 .fixedSize(horizontal: false, vertical: true)
             HStack(spacing: 8) {
                 if let retry {
-                    Button("重试", action: retry)
+                    Button(L10n.t("common.retry", "重试"), action: retry)
                         .buttonStyle(.borderedProminent)
                 }
                 if let login {
-                    Button("登录 Google", action: login)
+                    Button(L10n.t("result.login_google", "登录 Google"), action: login)
                         .buttonStyle(.bordered)
                 }
             }

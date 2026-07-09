@@ -63,7 +63,7 @@ struct ConfirmOpenButton: View {
     var body: some View {
         Button(action: tap) {
             if armed {
-                Text("确认打开")
+                Text(L10n.t("confirmopen.confirm", "确认打开"))
                     .font(.system(size: 11, weight: .medium))
                     .foregroundStyle(Color.white)
                     .padding(.horizontal, 9)
@@ -79,8 +79,10 @@ struct ConfirmOpenButton: View {
         .buttonStyle(.plain)
         .disabled(disabledReason != nil)
         .opacity(disabledReason != nil ? 0.3 : 1)
-        .help(disabledReason ?? (armed ? "再点一次:打开并退出圈选" : "在默认浏览器中打开"))
-        .accessibilityLabel(armed ? "确认在浏览器中打开" : "在浏览器中打开")
+        .help(disabledReason ?? (armed ? L10n.t("confirmopen.help_armed", "再点一次:打开并退出圈选")
+                                       : L10n.t("common.open_in_browser", "在默认浏览器中打开")))
+        .accessibilityLabel(armed ? L10n.t("confirmopen.a11y_armed", "确认在浏览器中打开")
+                                  : L10n.t("confirmopen.a11y_idle", "在浏览器中打开"))
         .animation(.easeOut(duration: 0.12), value: armed)
         .onDisappear { disarmTask?.cancel() }
     }

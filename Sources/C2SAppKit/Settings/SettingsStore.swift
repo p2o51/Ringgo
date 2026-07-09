@@ -14,9 +14,9 @@ public final class SettingsStore: ObservableObject {
 
         public var label: String {
             switch self {
-            case .system: return "跟随系统"
-            case .dark: return "深色"
-            case .light: return "浅色"
+            case .system: return L10n.t("appearance.system", "跟随系统")
+            case .dark: return L10n.t("appearance.dark", "深色")
+            case .light: return L10n.t("appearance.light", "浅色")
             }
         }
     }
@@ -142,7 +142,8 @@ public final class SettingsStore: ObservableObject {
                 try service.register()
                 // 注册成功但被系统拦在「登录项」待批状态时,给出指引而不拨回。
                 if service.status == .requiresApproval {
-                    launchAtLoginError = "已申请，请在「系统设置 → 通用 → 登录项」中允许 Ringgo。"
+                    launchAtLoginError = L10n.t("settings.launch.requires_approval",
+                                                "已申请，请在「系统设置 → 通用 → 登录项」中允许 Ringgo。")
                 }
             } else {
                 guard service.status == .enabled else { return }
@@ -152,8 +153,9 @@ public final class SettingsStore: ObservableObject {
             isRevertingLaunchAtLogin = true
             launchAtLogin = previous
             isRevertingLaunchAtLogin = false
-            launchAtLoginError = (enable ? "无法开启「登录时启动」:" : "无法关闭「登录时启动」:")
-                + error.localizedDescription
+            launchAtLoginError = enable
+                ? L10n.f("settings.launch.enable_failed", "无法开启「登录时启动」:%@", error.localizedDescription)
+                : L10n.f("settings.launch.disable_failed", "无法关闭「登录时启动」:%@", error.localizedDescription)
         }
     }
 }

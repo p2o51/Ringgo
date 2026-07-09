@@ -132,7 +132,7 @@ public final class MultitouchTrigger {
         guard deviceCount > 0 else {
             Unmanaged<MultitouchTrigger>.fromOpaque(context).release()
             let error = String(cString: C2SMTLastError())
-            return .unavailable(error.isEmpty ? "三指触控初始化失败。" : error)
+            return .unavailable(error.isEmpty ? L10n.t("multitouch.err.init_failed", "三指触控初始化失败。") : error)
         }
 
         callbackContext = context

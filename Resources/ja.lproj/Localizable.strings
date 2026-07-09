@@ -1,0 +1,322 @@
+/* Ringgo — generated from Scripts/l10n/l10n.json. Do not edit by hand. */
+
+/* button in error cards / status */
+"common.retry" = "再試行";
+/* alert button */
+"common.cancel" = "キャンセル";
+/* permission status label */
+"common.granted" = "許可済み";
+/* button that opens System Settings to grant a permission */
+"common.go_authorize" = "設定を開く…";
+/* toolbar action button (verb) */
+"common.translate" = "翻訳";
+/* toolbar action button + mode chip (verb) */
+"common.visualize" = "可視化";
+/* toolbar action button (verb) */
+"common.edit" = "編集";
+/* search field placeholder / tab / section */
+"common.search" = "検索";
+/* button */
+"common.restart_ringgo" = "Ringgo を再起動";
+/* context-menu item / button help */
+"common.open_in_browser" = "デフォルトのブラウザで開く";
+/* accessibility label for panel close (× = leave overlay) */
+"common.exit_selection" = "かこって検索を終了";
+/* text field placeholder for nano-banana image edit */
+"common.edit_placeholder" = "この画像の編集内容を入力…";
+/* disabled translate button help */
+"common.needs_macos15" = "macOS 15 以降が必要です";
+/* menu bar item that starts a selection */
+"menu.capture_now" = "かこって検索";
+/* menu bar warning item */
+"menu.needs_screen_permission" = "画面収録の許可が必要です…";
+/* menu bar item */
+"menu.settings" = "設定…";
+/* menu bar item */
+"menu.welcome_guide" = "ようこそガイド…";
+/* menu bar item */
+"menu.quit" = "Ringgo を終了";
+/* settings window title */
+"settings.window_title" = "Ringgo 設定";
+/* settings tab */
+"settings.tab.general" = "一般";
+/* settings tab + appearance section header */
+"settings.tab.appearance" = "外観";
+/* settings tab + search section header */
+"settings.tab.search" = "検索";
+/* settings tab */
+"settings.tab.permissions" = "権限";
+/* settings tab */
+"settings.tab.about" = "情報";
+/* section header above main hotkey */
+"settings.general.section.capture" = "かこって検索";
+/* section header */
+"settings.general.section.more_triggers" = "その他の呼び出し方法";
+/* section header */
+"settings.general.section.launch" = "起動";
+/* toggle */
+"settings.charge.toggle" = "長押しで呼び出し";
+/* toggle caption */
+"settings.charge.caption" = "⌘⇧ を約 250 ミリ秒押し続けると呼び出されます。しきい値の前に離すとキャンセルされます。";
+/* toggle */
+"settings.double_shift.toggle" = "Shift ダブルタップで呼び出し";
+/* toggle caption */
+"settings.double_shift.caption" = "オプション機能です。アクセシビリティ権限が必要で、オンにしたときにのみ許可を求めます。";
+/* warning row */
+"settings.double_shift.no_ax" = "アクセシビリティ権限が未許可です";
+/* toggle */
+"settings.multitouch.toggle" = "トラックパッドの 3 本指ダブルタップ（実験的）";
+/* toggle caption */
+"settings.multitouch.caption" = "任意のアプリの前面で 3 本指で 2 回続けて軽くタップします。アクセシビリティ権限は不要ですが、システムの 3 本指ジェスチャと競合する場合があります。";
+/* status row, %d = count */
+"settings.multitouch.connected" = "%d 台のトラックパッドに接続済み";
+/* status row */
+"settings.multitouch.sleeping" = "スリープ中です。復帰時に自動的に再接続します";
+/* toggle */
+"settings.launch_at_login.toggle" = "ログイン時に Ringgo を起動";
+/* toggle caption */
+"settings.launch_at_login.caption" = "Mac へのログイン時にメニューバーで静かに起動します。";
+/* appearance option */
+"appearance.system" = "システムに合わせる";
+/* appearance option */
+"appearance.dark" = "ダーク";
+/* appearance option */
+"appearance.light" = "ライト";
+/* toggle */
+"settings.reduce_effects.toggle" = "動きを減らす";
+/* toggle caption */
+"settings.reduce_effects.caption" = "きらめきや波紋などの装飾アニメーションをオフにし、パネルはフェードで表示します。";
+/* labeled content */
+"settings.search.default_engine" = "デフォルトの検索エンジン";
+/* caption */
+"settings.search.engine_caption" = "現在は Google に対応しています。今後さらに対応予定です。";
+/* section header */
+"settings.search.ocr_section" = "テキスト認識";
+/* labeled content */
+"settings.search.ocr_language" = "OCR の言語";
+/* labeled content value */
+"settings.search.ocr_auto" = "自動検出";
+/* caption */
+"settings.search.ocr_caption" = "Apple Vision がデバイス上で認識します。中国語・英語・日本語・韓国語などに対応しています。";
+/* section header (noun) */
+"settings.search.translation_section" = "翻訳";
+/* picker label */
+"settings.search.translate_to" = "翻訳先";
+/* picker option, %@ = system language name */
+"settings.search.follow_system" = "システムに合わせる（%@）";
+/* caption */
+"settings.search.translation_caption" = "選択したテキストや画像の翻訳先の言語です。選択ツールバーと同期します。全画面翻訳には macOS 15 以降が必要です。";
+/* section header */
+"settings.perm.screen_section" = "画面収録";
+/* permission row title */
+"settings.perm.screen_title" = "画面収録";
+/* permission row detail */
+"settings.perm.screen_detail" = "選択を開始したときに画面を 1 フレームだけキャプチャします。録画はせず、自動でアップロードもしません。";
+/* hint row */
+"settings.perm.screen_restart_hint" = "許可した後、有効にするには Ringgo を再起動してください。";
+/* section header */
+"settings.perm.ax_section" = "アクセシビリティ";
+/* permission row title */
+"settings.perm.ax_title" = "アクセシビリティ";
+/* permission row detail */
+"settings.perm.ax_detail" = "「Shift ダブルタップで呼び出し」にのみ必要です。メインのショートカットや長押しでは不要です。";
+/* version fallback */
+"settings.about.dev_build" = "開発ビルド";
+/* %@ = version string */
+"settings.about.version" = "バージョン %@";
+/* button */
+"settings.about.show_welcome" = "ようこそガイドを表示";
+/* window title + hero heading */
+"welcome.title" = "Ringgo へようこそ";
+/* hero subtitle */
+"welcome.subtitle" = "画面上のあらゆるものをかこって、すぐに検索。";
+/* feature row title */
+"welcome.feature.circle.title" = "さっとひとかこみ";
+/* feature row detail */
+"welcome.feature.circle.detail" = "丸を描く・なぞる・タップして、画面上のテキストや画像を選択します。";
+/* feature row title */
+"welcome.feature.search.title" = "すぐに検索";
+/* feature row detail */
+"welcome.feature.search.detail" = "検索結果はフローティングパネルに表示され、作業を中断しません。";
+/* feature row title */
+"welcome.feature.more.title" = "翻訳やその他の機能";
+/* feature row detail */
+"welcome.feature.more.detail" = "その場での翻訳、内容の可視化、画像編集まで、すべて選択から行えます。";
+/* button */
+"welcome.continue" = "続ける";
+/* step heading */
+"welcome.setup.title" = "セットアップを完了";
+/* step subtitle */
+"welcome.setup.subtitle" = "画面収録を許可し、よく使う 2 つの設定を確認します。";
+/* button */
+"welcome.back" = "戻る";
+/* button */
+"welcome.get_started" = "使ってみる";
+/* card title */
+"welcome.perm.title" = "画面収録の許可";
+/* card detail */
+"welcome.perm.detail" = "自分で呼び出したときにのみ 1 フレームをキャプチャします。録画はせず、自動でアップロードもしません。";
+/* button */
+"welcome.perm.authorize" = "許可する…";
+/* hint row */
+"welcome.perm.restart_hint" = "システム設定で許可した後、有効にするには Ringgo を再起動してください。";
+/* button (with ellipsis) */
+"welcome.open_system_settings" = "システム設定を開く…";
+/* button (short) */
+"welcome.restart" = "再起動";
+/* row title */
+"welcome.hotkey.title" = "呼び出しショートカット";
+/* row caption */
+"welcome.hotkey.caption" = "後で「設定 → 一般」で変更できます。";
+/* toggle */
+"welcome.launch_at_login" = "ログイン時に Ringgo を自動起動";
+/* labeled content + a11y label */
+"hotkey.label" = "選択ショートカット";
+/* button help while recording */
+"hotkey.help_recording" = "Esc キーで記録をキャンセル";
+/* button help idle */
+"hotkey.help_idle" = "クリックしてショートカットを変更";
+/* a11y value while recording */
+"hotkey.recording" = "記録中";
+/* a11y hint while recording */
+"hotkey.hint_recording" = "新しいキーの組み合わせを押してください";
+/* a11y hint idle */
+"hotkey.hint_idle" = "押して新しいショートカットを記録";
+/* reset button help; keep ⌘⇧S symbols */
+"hotkey.reset_help" = "⌘⇧S にリセット";
+/* recorder placeholder */
+"hotkey.enter_new" = "新しいショートカットを入力…";
+/* helper text */
+"hotkey.helper_recording" = "新しいキーの組み合わせを押してください。Esc でキャンセル。";
+/* helper text */
+"hotkey.helper_idle" = "どのアプリでも押すだけで選択を開始できます。";
+/* validation */
+"hotkey.need_modifier" = "グローバルショートカットには修飾キー（⌘⌥⌃⇧）を 1 つ以上含める必要があります。";
+/* keycap name for space */
+"key.space" = "スペース";
+/* keycap name for unknown key code, %d = code */
+"key.generic" = "キー %d";
+/* search field placeholder */
+"bottombar.search_placeholder" = "画面を検索、または質問を入力…";
+/* mic button help */
+"bottombar.dictation_help" = "音声入力（システム設定で有効化）";
+/* mic button a11y label */
+"bottombar.dictation_a11y" = "音声入力を開始";
+/* translate button help, %@ = target language name */
+"bottombar.translate_help" = "全画面を翻訳（%@）。カーソルを合わせると翻訳先を切り替えられます";
+/* translate button a11y label, %@ = target language name */
+"bottombar.translate_a11y" = "全画面を %@ に翻訳";
+/* a11y label for the mini toolbar */
+"minitoolbar.a11y" = "選択ツールバー";
+/* chip: switch selection type text→image */
+"minitoolbar.switch_to_image" = "画像として選択";
+/* chip: switch selection type image→text */
+"minitoolbar.switch_to_text" = "テキストとして選択";
+/* caption + a11y value when no text under selection */
+"minitoolbar.no_text" = "テキストが見つかりません";
+/* a11y label for edit submit button */
+"minitoolbar.submit_edit_a11y" = "編集内容を送信";
+/* a11y label of a highlighted action button, %@ = button title */
+"minitoolbar.button_active" = "%@（実行中。タップで終了）";
+/* armed state label */
+"confirmopen.confirm" = "開くを確定";
+/* button help when armed */
+"confirmopen.help_armed" = "もう一度タップ：開いてかこって検索を終了";
+/* a11y label when armed */
+"confirmopen.a11y_armed" = "ブラウザで開くを確定";
+/* a11y label idle */
+"confirmopen.a11y_idle" = "ブラウザで開く";
+/* disabled reason for open-in-browser */
+"result.lens_bound_reason" = "Lens の結果はこのパネルのセッションに紐づいており、外部ブラウザでは開けません";
+/* disabled reason for open-in-browser */
+"result.page_not_loaded" = "ページがまだ読み込まれていません";
+/* a11y hint on drag strip */
+"result.drag_hint" = "ドラッグしてパネルを移動";
+/* search pill placeholder in image-search mode */
+"result.add_to_search" = "検索に追加";
+/* error card button */
+"result.login_google" = "Google にログイン";
+/* lens blocked message */
+"result.blocked_403" = "Google が匿名アクセスを拒否しました（403）。パネルで一度 Google にログインすると画像検索が使えるようになります。";
+/* %@ = error description */
+"result.image_search_network_failed" = "画像検索のネットワーク接続に失敗しました：%@";
+/* a11y label for detail panel browser back button (‹) */
+"detail.back" = "戻る";
+/* a11y label for detail panel browser forward button (›) */
+"detail.forward" = "進む";
+/* a11y label for detail panel close button (×) */
+"detail.close" = "詳細を閉じる";
+/* failure message */
+"translate.no_translatable" = "選択範囲に翻訳できるテキストがありません";
+/* %@ = language name */
+"translate.already_target" = "この内容はすでに%@のようです。別の翻訳先を試してください";
+/* %1$@ = source lang, %2$@ = target lang */
+"translate.unsupported" = "%1$@ → %2$@ の翻訳には現在対応していません";
+/* failure message */
+"translate.download_incomplete" = "モデルのダウンロードが完了しませんでした";
+/* window title */
+"translate.download_window_title" = "翻訳モデルをダウンロード";
+/* download window status */
+"translate.requesting_download" = "ダウンロードをリクエスト中…";
+/* %@ = 'source → target' description */
+"translate.preparing_model" = "%@ の翻訳モデルを準備中";
+/* internal error */
+"translate.plumbing_error" = "翻訳結果に行の識別子がなく、元の位置に戻せません";
+/* progress capsule */
+"translate.translating" = "翻訳中…";
+/* progress, %1$d done, %2$d total */
+"translate.translating_progress" = "翻訳中 %1$d/%2$d";
+/* %@ = 'source → target' description */
+"translate.needs_download" = "先に %@ の翻訳モデルをダウンロードする必要があります";
+/* button */
+"translate.download_button" = "ダウンロード";
+/* Gemini prompt; %1$@ = target language name, %2$@ = selected text */
+"prompt.translate_text" = "次のテキストを%1$@に翻訳してください:\n\n%2$@";
+/* Gemini prompt; %@ = selected text */
+"prompt.visualize_text" = "次の内容を可視化してください。データや構造に適していれば可視化図（インフォグラフィック・フローチャート・比較表など）を、絵の方が適していれば nano banana で画像を生成してください:\n\n%@";
+/* Gemini prompt; %@ = target language name */
+"prompt.translate_image" = "この画像内のすべてのテキストを%@に翻訳し、元の構成と順序を保って出力してください。";
+/* Gemini prompt */
+"prompt.visualize_image" = "この画像の内容を可視化してください。データや構造に適していれば可視化図（インフォグラフィック・フローチャート・比較表など）を、絵の方が適していれば nano banana で新しい画像を生成して表現してください。";
+/* Gemini prompt; %@ = user instruction */
+"prompt.edit_image" = "nano banana でこの画像を編集し、編集後の画像を直接生成してください。編集内容: %@";
+/* mode chip; %@ = target language name */
+"chip.translate" = "翻訳 · %@";
+/* mode chip; keep 'Nano Banana' */
+"chip.edit" = "編集 · Nano Banana";
+/* error card message */
+"error.image_search_failed" = "画像検索に失敗しました。もう一度お試しください。";
+/* alert title */
+"alert.hotkey_failed_title" = "ショートカットの登録に失敗しました";
+/* alert title */
+"alert.capture_failed_title" = "画面をキャプチャできません";
+/* alert body */
+"alert.capture_no_permission_body" = "「システム設定 → プライバシーとセキュリティ → 画面収録」で Ringgo を許可してください。\nすでに許可している場合は、有効にするために Ringgo を再起動してください。";
+/* alert button (no ellipsis) */
+"alert.open_system_settings" = "システム設定を開く";
+/* alert title */
+"alert.relaunch_failed_title" = "Ringgo を再起動できません";
+/* alert body */
+"alert.relaunch_failed_body" = "システムが新しい Ringgo を起動しませんでした。手動で終了してからアプリを開き直してください。";
+/* login item pending approval */
+"settings.launch.requires_approval" = "申請しました。「システム設定 → 一般 → ログイン項目」で Ringgo を許可してください。";
+/* %@ = error description */
+"settings.launch.enable_failed" = "「ログイン時に起動」をオンにできませんでした: %@";
+/* %@ = error description */
+"settings.launch.disable_failed" = "「ログイン時に起動」をオフにできませんでした: %@";
+/* error description */
+"capture.err.no_permission" = "画面収録の権限がありません。";
+/* error description */
+"capture.err.no_display" = "利用できるディスプレイが見つかりません。";
+/* error description (detail appended after) */
+"capture.err.failed" = "画面のキャプチャに失敗しました。";
+/* %d = status */
+"hotkey.err.register" = "ショートカットの登録に失敗しました（OSStatus %d）。他のアプリが使用している可能性があります。設定で変更してください。";
+/* %d = status */
+"hotkey.err.handler" = "ショートカットイベントハンドラのインストールに失敗しました（OSStatus %d）。";
+/* error */
+"hotkey.err.need_ax" = "「Shift ダブルタップ」にはアクセシビリティ権限が必要です。「システム設定 → プライバシーとセキュリティ → アクセシビリティ」で Ringgo を許可してください。";
+/* error */
+"multitouch.err.init_failed" = "3 本指タッチの初期化に失敗しました。";
+/* error description */
+"lens.err.encoding_failed" = "画像のエンコードに失敗しました。";

@@ -105,7 +105,7 @@ struct SelectionMiniToolbar: View {
             noTextCaptionVisible = false
         }
         .accessibilityElement(children: .contain)
-        .accessibilityLabel("选区工具条")
+        .accessibilityLabel(L10n.t("minitoolbar.a11y", "选区工具条"))
     }
 
     private var actionCapsule: some View {
@@ -115,18 +115,18 @@ struct SelectionMiniToolbar: View {
             switch kind {
             case .text:
                 if let onTranslate {
-                    toolbarButton(icon: "translate", title: "翻译",
+                    toolbarButton(icon: "translate", title: L10n.t("common.translate", "翻译"),
                                   action: onTranslate, highlighted: activeMode == .translate)
                 }
                 if onTranslate != nil, onVisualize != nil { divider }
                 if let onVisualize {
-                    toolbarButton(icon: "chart.bar.xaxis", title: "可视化",
+                    toolbarButton(icon: "chart.bar.xaxis", title: L10n.t("common.visualize", "可视化"),
                                   action: onVisualize, highlighted: activeMode == .visualize)
                 }
             case .image:
                 if editExpanded.wrappedValue, onEditSubmit != nil {
                     // 编辑输入态:[编辑(高亮,点击收起)][指令输入][↑ 提交]
-                    toolbarButton(icon: "wand.and.stars", title: "编辑",
+                    toolbarButton(icon: "wand.and.stars", title: L10n.t("common.edit", "编辑"),
                                   action: { editExpanded.wrappedValue = false },
                                   highlighted: true)
                     divider
@@ -135,19 +135,19 @@ struct SelectionMiniToolbar: View {
                     // 图片动作 = 用户意图明确留在图片:顶掉在飞的「改选文字」,
                     // 防补刀晚到把工具条翻成文字面、清掉 Lens 挂起/编辑草稿
                     if let onTranslate {
-                        toolbarButton(icon: "translate", title: "翻译",
+                        toolbarButton(icon: "translate", title: L10n.t("common.translate", "翻译"),
                                       action: supersedingSwitch(onTranslate),
                                       highlighted: activeMode == .translate)
                     }
                     if onTranslate != nil, onVisualize != nil { divider }
                     if let onVisualize {
-                        toolbarButton(icon: "chart.bar.xaxis", title: "可视化",
+                        toolbarButton(icon: "chart.bar.xaxis", title: L10n.t("common.visualize", "可视化"),
                                       action: supersedingSwitch(onVisualize),
                                       highlighted: activeMode == .visualize)
                     }
                     if onVisualize != nil, onEditSubmit != nil { divider }
                     if onEditSubmit != nil {
-                        toolbarButton(icon: "wand.and.stars", title: "编辑",
+                        toolbarButton(icon: "wand.and.stars", title: L10n.t("common.edit", "编辑"),
                                       action: supersedingSwitch { editExpanded.wrappedValue = true },
                                       highlighted: activeMode == .editImage)
                     }
@@ -174,10 +174,10 @@ struct SelectionMiniToolbar: View {
             switch kind {
             case .text:
                 guard let onSwitchToImage else { return nil }
-                return ("photo", "改选图片", onSwitchToImage)
+                return ("photo", L10n.t("minitoolbar.switch_to_image", "改选图片"), onSwitchToImage)
             case .image:
                 guard onSwitchToText != nil, !editExpanded.wrappedValue else { return nil }
-                return ("text.viewfinder", "改选文字", switchToTextTapped)
+                return ("text.viewfinder", L10n.t("minitoolbar.switch_to_text", "改选文字"), switchToTextTapped)
             }
         }()
         if let config {
@@ -211,7 +211,7 @@ struct SelectionMiniToolbar: View {
             .modifier(ShakeEffect(phase: shakePhase))
             .overlay(alignment: .top) { noTextCaption }
             .accessibilityLabel(config.title)
-            .accessibilityValue(noTextCaptionVisible ? "未识别到文字" : "")
+            .accessibilityValue(noTextCaptionVisible ? L10n.t("minitoolbar.no_text", "未识别到文字") : "")
         }
     }
 
@@ -248,7 +248,7 @@ struct SelectionMiniToolbar: View {
     /// 浮出说明:chip 上方 8pt 的小玻璃气泡,不参与布局(不会挤动工具条摆位)。
     @ViewBuilder private var noTextCaption: some View {
         if noTextCaptionVisible {
-            Text("未识别到文字")
+            Text(L10n.t("minitoolbar.no_text", "未识别到文字"))
                 .font(.system(size: 11, weight: .medium))
                 .foregroundStyle(.secondary)
                 .padding(.horizontal, 9)
@@ -289,13 +289,13 @@ struct SelectionMiniToolbar: View {
             .contentShape(Rectangle()) // 整个按钮区域可点,不只文字
         }
         .buttonStyle(.plain)
-        .accessibilityLabel(highlighted ? "\(title)(进行中,点按退出)" : title)
+        .accessibilityLabel(highlighted ? L10n.f("minitoolbar.button_active", "%@(进行中,点按退出)", title) : title)
     }
 
     /// 编辑指令内联输入:自动聚焦,回车/↑ 提交(空指令不发);草稿保留可微调重发。
     private var editField: some View {
         HStack(spacing: 4) {
-            TextField("描述要怎么改这张图…", text: $editText)
+            TextField(L10n.t("common.edit_placeholder", "描述要怎么改这张图…"), text: $editText)
                 .textFieldStyle(.plain)
                 .font(.system(size: Metrics.fontSize + 1))
                 .frame(width: Metrics.editFieldWidth)
@@ -314,7 +314,7 @@ struct SelectionMiniToolbar: View {
             }
             .buttonStyle(.plain)
             .disabled(!canSubmitEdit)
-            .accessibilityLabel("提交编辑指令")
+            .accessibilityLabel(L10n.t("minitoolbar.submit_edit_a11y", "提交编辑指令"))
         }
         .padding(.leading, Metrics.editFieldLeadingGap)
     }

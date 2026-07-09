@@ -22,7 +22,7 @@ final class LensService {
 
         var errorDescription: String? {
             switch self {
-            case .encodingFailed: return "图片编码失败。"
+            case .encodingFailed: return L10n.t("lens.err.encoding_failed", "图片编码失败。")
             }
         }
     }

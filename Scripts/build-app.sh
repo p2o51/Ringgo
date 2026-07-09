@@ -39,6 +39,13 @@ fi
 cp Resources/Info.plist "$APP/Contents/Info.plist"
 cp Resources/AppIcon.icns "$APP/Contents/Resources/AppIcon.icns"
 
+# 本地化资源(zh-Hans/en/ja):.lproj 直接放 .app 的 Contents/Resources,
+# 由 Bundle.main(见 Localization.swift 的 L10n)按系统首选语言 / 按 App 语言偏好查表。
+# 由 Scripts/l10n/gen-strings.py 从 Scripts/l10n/l10n.json 生成,改文案先重跑它。
+for lproj in Resources/*.lproj; do
+  [ -d "$lproj" ] && cp -R "$lproj" "$APP/Contents/Resources/" || true
+done
+
 # SPM 资源 bundle(纯数据,和架构无关,任一 triple 产物都一样)。放标准位置
 # Contents/Resources —— SwiftPM 给可执行 target 生成的 resource_bundle_accessor
 # .swift 只认 Bundle.main.bundleURL(.app 包根)拼 bundle 名,压根不知道

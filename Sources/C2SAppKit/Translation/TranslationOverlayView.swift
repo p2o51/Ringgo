@@ -63,9 +63,9 @@ struct TranslationOverlayView: View {
         Group {
             switch controller.state {
             case .preparing:
-                progressCapsule(text: "翻译中…")
+                progressCapsule(text: L10n.t("translate.translating", "翻译中…"))
             case .translating(let done, let total):
-                progressCapsule(text: "翻译中 \(done)/\(total)")
+                progressCapsule(text: L10n.f("translate.translating_progress", "翻译中 %1$d/%2$d", done, total))
             case .failed(let message):
                 failureCard(message: message)
             case .needsDownload(let desc):
@@ -98,10 +98,10 @@ struct TranslationOverlayView: View {
         return HStack(spacing: 10) {
             Image(systemName: "arrow.down.circle")
                 .foregroundStyle(Color.accentColor)
-            Text("需要先下载 \(desc) 翻译模型")
+            Text(L10n.f("translate.needs_download", "需要先下载 %@ 翻译模型", desc))
                 .font(.callout)
                 .foregroundStyle(.primary)
-            Button("下载") {
+            Button(L10n.t("translate.download_button", "下载")) {
                 controller.startDownload()
             }
             .buttonStyle(.borderedProminent)
@@ -123,7 +123,7 @@ struct TranslationOverlayView: View {
                 .font(.callout)
                 .foregroundStyle(.primary)
                 .lineLimit(2)
-            Button("重试") {
+            Button(L10n.t("common.retry", "重试")) {
                 controller.retry()
             }
             .buttonStyle(.borderedProminent)

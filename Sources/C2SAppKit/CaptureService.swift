@@ -19,9 +19,9 @@ public final class CaptureService {
         // nonisolated:错误可能在任意上下文被读取,不随外层类挂到 MainActor
         public nonisolated var errorDescription: String? {
             switch self {
-            case .noPermission: return "没有屏幕录制权限。"
-            case .noDisplay: return "找不到可用的显示器。"
-            case .captureFailed(let e): return "截屏失败。" + (e.map { " (\($0.localizedDescription))" } ?? "")
+            case .noPermission: return L10n.t("capture.err.no_permission", "没有屏幕录制权限。")
+            case .noDisplay: return L10n.t("capture.err.no_display", "找不到可用的显示器。")
+            case .captureFailed(let e): return L10n.t("capture.err.failed", "截屏失败。") + (e.map { " (\($0.localizedDescription))" } ?? "")
             }
         }
     }

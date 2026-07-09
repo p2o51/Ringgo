@@ -39,7 +39,7 @@ public final class SettingsWindowController: NSObject, ObservableObject, NSWindo
                 backing: .buffered,
                 defer: false
             )
-            window.title = "Ringgo 设置"
+            window.title = L10n.t("settings.window_title", "Ringgo 设置")
             window.isReleasedWhenClosed = false
             window.collectionBehavior.insert(.moveToActiveSpace)
             window.delegate = self

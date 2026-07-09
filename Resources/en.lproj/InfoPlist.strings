@@ -1,0 +1,7 @@
+/* Ringgo — generated from Scripts/l10n/l10n.json. */
+
+"CFBundleDisplayName" = "Ringgo";
+"CFBundleName" = "Ringgo";
+"NSCalendarsUsageDescription" = "When a calendar QR code (vEvent) is scanned, Ringgo needs Calendar access to add the event for you.";
+"NSContactsUsageDescription" = "When a contact QR code (vCard) is scanned, Ringgo needs Contacts access to save the contact for you.";
+"NSScreenCaptureUsageDescription" = "Ringgo needs Screen Recording permission to capture the current screen for Circle to Search. Screenshots are processed on your device and are never uploaded automatically.";

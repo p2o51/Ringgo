@@ -121,7 +121,8 @@ public final class HotkeyManager {
             hotKeyRef = ref
         } else {
             hotKeyRef = nil
-            onError?("热键注册失败(OSStatus \(status)),可能已被其他应用占用,请在设置中更换快捷键。")
+            onError?(L10n.f("hotkey.err.register",
+                            "热键注册失败(OSStatus %d),可能已被其他应用占用,请在设置中更换快捷键。", Int(status)))
         }
     }
 
@@ -137,7 +138,7 @@ public final class HotkeyManager {
                                          &eventHandlerRef)
         if status != noErr {
             eventHandlerRef = nil
-            onError?("热键事件回调安装失败(OSStatus \(status))。")
+            onError?(L10n.f("hotkey.err.handler", "热键事件回调安装失败(OSStatus %d)。", Int(status)))
         }
     }
 
@@ -248,7 +249,8 @@ public final class HotkeyManager {
             warnedDoubleShiftAX = false
         } else if !warnedDoubleShiftAX {
             warnedDoubleShiftAX = true
-            onError?("「双击 Shift」触发需要辅助功能权限：请在「系统设置 → 隐私与安全性 → 辅助功能」中允许 Ringgo。")
+            onError?(L10n.t("hotkey.err.need_ax",
+                            "「双击 Shift」触发需要辅助功能权限：请在「系统设置 → 隐私与安全性 → 辅助功能」中允许 Ringgo。"))
         }
     }
 }

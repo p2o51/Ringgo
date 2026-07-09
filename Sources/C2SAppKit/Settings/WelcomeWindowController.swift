@@ -66,7 +66,7 @@ public final class WelcomeWindowController: NSObject, ObservableObject, NSWindow
                 backing: .buffered,
                 defer: false
             )
-            window.title = "欢迎使用 Ringgo"
+            window.title = L10n.t("welcome.title", "欢迎使用 Ringgo")
             window.titleVisibility = .hidden
             window.titlebarAppearsTransparent = true
             window.titlebarSeparatorStyle = .none
@@ -187,11 +187,11 @@ private struct WelcomeView: View {
                 .frame(width: 104, height: 104)
                 .accessibilityHidden(true)
 
-            Text("欢迎使用 Ringgo")
+            Text(L10n.t("welcome.title", "欢迎使用 Ringgo"))
                 .font(.system(size: 26, weight: .semibold))
                 .padding(.top, 14)
 
-            Text("圈选屏幕上的任何内容，立即搜索。")
+            Text(L10n.t("welcome.subtitle", "圈选屏幕上的任何内容，立即搜索。"))
                 .font(.system(size: 13))
                 .foregroundStyle(.secondary)
                 .padding(.top, 6)
@@ -199,18 +199,18 @@ private struct WelcomeView: View {
             VStack(spacing: 17) {
                 WelcomeFeatureRow(
                     icon: "hand.draw",
-                    title: "随手一圈",
-                    detail: "画个圈、划一下或轻点，选中屏幕上的文字与图片。"
+                    title: L10n.t("welcome.feature.circle.title", "随手一圈"),
+                    detail: L10n.t("welcome.feature.circle.detail", "画个圈、划一下或轻点，选中屏幕上的文字与图片。")
                 )
                 WelcomeFeatureRow(
                     icon: "sparkle.magnifyingglass",
-                    title: "即刻搜索",
-                    detail: "结果在悬浮面板里展开，不打断手头的工作。"
+                    title: L10n.t("welcome.feature.search.title", "即刻搜索"),
+                    detail: L10n.t("welcome.feature.search.detail", "结果在悬浮面板里展开，不打断手头的工作。")
                 )
                 WelcomeFeatureRow(
                     icon: "wand.and.stars",
-                    title: "翻译与更多",
-                    detail: "选中即译、内容可视化与图片编辑，都在圈选里完成。"
+                    title: L10n.t("welcome.feature.more.title", "翻译与更多"),
+                    detail: L10n.t("welcome.feature.more.detail", "选中即译、内容可视化与图片编辑，都在圈选里完成。")
                 )
             }
             .padding(.top, 28)
@@ -218,7 +218,7 @@ private struct WelcomeView: View {
 
             Spacer()
 
-            Button("继续") {
+            Button(L10n.t("welcome.continue", "继续")) {
                 withAnimation(reduceMotion ? .easeOut(duration: 0.15)
                                            : .spring(response: 0.35, dampingFraction: 0.86)) {
                     step = .setup
@@ -233,11 +233,11 @@ private struct WelcomeView: View {
 
     private var setup: some View {
         VStack(alignment: .leading, spacing: 0) {
-            Text("完成设置")
+            Text(L10n.t("welcome.setup.title", "完成设置"))
                 .font(.system(size: 22, weight: .semibold))
                 .frame(maxWidth: .infinity, alignment: .center)
 
-            Text("授权屏幕录制，再确认两项常用偏好。")
+            Text(L10n.t("welcome.setup.subtitle", "授权屏幕录制，再确认两项常用偏好。"))
                 .font(.system(size: 13))
                 .foregroundStyle(.secondary)
                 .frame(maxWidth: .infinity, alignment: .center)
@@ -252,7 +252,7 @@ private struct WelcomeView: View {
             Spacer()
 
             HStack {
-                Button("返回") {
+                Button(L10n.t("welcome.back", "返回")) {
                     withAnimation(reduceMotion ? .easeOut(duration: 0.15)
                                                : .spring(response: 0.35, dampingFraction: 0.86)) {
                         step = .introduction
@@ -262,7 +262,7 @@ private struct WelcomeView: View {
 
                 Spacer()
 
-                Button("开始使用") {
+                Button(L10n.t("welcome.get_started", "开始使用")) {
                     onFinish(screenGranted)
                 }
                 .buttonStyle(.borderedProminent)
@@ -279,9 +279,9 @@ private struct WelcomeView: View {
                     SettingsPermissionIcon(systemName: "rectangle.dashed.badge.record")
 
                     VStack(alignment: .leading, spacing: 3) {
-                        Text("屏幕录制权限")
+                        Text(L10n.t("welcome.perm.title", "屏幕录制权限"))
                             .font(.system(size: 13, weight: .semibold))
-                        Text("仅在你主动唤起时截取一帧；不录像，也不会自动上传。")
+                        Text(L10n.t("welcome.perm.detail", "仅在你主动唤起时截取一帧；不录像，也不会自动上传。"))
                             .font(.system(size: 11))
                             .foregroundStyle(.secondary)
                             .fixedSize(horizontal: false, vertical: true)
@@ -290,11 +290,11 @@ private struct WelcomeView: View {
                     Spacer(minLength: 8)
 
                     if screenGranted {
-                        Label("已授权", systemImage: "checkmark.circle.fill")
+                        Label(L10n.t("common.granted", "已授权"), systemImage: "checkmark.circle.fill")
                             .font(.system(size: 11, weight: .medium))
                             .foregroundStyle(Color.green)
                     } else if !screenPromptShown {
-                        Button("授权…", action: requestScreenPermission)
+                        Button(L10n.t("welcome.perm.authorize", "授权…"), action: requestScreenPermission)
                             .controlSize(.small)
                             .buttonStyle(.borderedProminent)
                     }
@@ -305,14 +305,14 @@ private struct WelcomeView: View {
                     HStack(alignment: .center, spacing: 8) {
                         Image(systemName: "exclamationmark.triangle.fill")
                             .foregroundStyle(Color(nsColor: .systemYellow))
-                        Text("在系统设置中允许后，需要重新启动 Ringgo 才会生效。")
+                        Text(L10n.t("welcome.perm.restart_hint", "在系统设置中允许后，需要重新启动 Ringgo 才会生效。"))
                             .font(.system(size: 11))
                             .foregroundStyle(.secondary)
                             .fixedSize(horizontal: false, vertical: true)
                         Spacer(minLength: 8)
-                        Button("打开系统设置…", action: openScreenSettings)
+                        Button(L10n.t("welcome.open_system_settings", "打开系统设置…"), action: openScreenSettings)
                             .controlSize(.small)
-                        Button("重新启动", action: restartForPermission)
+                        Button(L10n.t("welcome.restart", "重新启动"), action: restartForPermission)
                             .controlSize(.small)
                             .buttonStyle(.borderedProminent)
                     }
@@ -327,9 +327,9 @@ private struct WelcomeView: View {
             VStack(spacing: 12) {
                 HStack {
                     VStack(alignment: .leading, spacing: 3) {
-                        Text("唤起热键")
+                        Text(L10n.t("welcome.hotkey.title", "唤起热键"))
                             .font(.system(size: 13, weight: .medium))
-                        Text("稍后可在「设置 → 通用」中修改。")
+                        Text(L10n.t("welcome.hotkey.caption", "稍后可在「设置 → 通用」中修改。"))
                             .font(.system(size: 11))
                             .foregroundStyle(.secondary)
                     }
@@ -343,7 +343,7 @@ private struct WelcomeView: View {
                 Divider()
 
                 VStack(alignment: .leading, spacing: 3) {
-                    Toggle("登录时自动启动 Ringgo", isOn: $settings.launchAtLogin)
+                    Toggle(L10n.t("welcome.launch_at_login", "登录时自动启动 Ringgo"), isOn: $settings.launchAtLogin)
                     if let error = settings.launchAtLoginError {
                         Text(error)
                             .font(.system(size: 11))

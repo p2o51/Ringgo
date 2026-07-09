@@ -1,0 +1,322 @@
+/* Ringgo — generated from Scripts/l10n/l10n.json. Do not edit by hand. */
+
+/* button in error cards / status */
+"common.retry" = "Retry";
+/* alert button */
+"common.cancel" = "Cancel";
+/* permission status label */
+"common.granted" = "Granted";
+/* button that opens System Settings to grant a permission */
+"common.go_authorize" = "Open System Settings…";
+/* toolbar action button (verb) */
+"common.translate" = "Translate";
+/* toolbar action button + mode chip (verb) */
+"common.visualize" = "Visualize";
+/* toolbar action button (verb) */
+"common.edit" = "Edit";
+/* search field placeholder / tab / section */
+"common.search" = "Search";
+/* button */
+"common.restart_ringgo" = "Restart Ringgo";
+/* context-menu item / button help */
+"common.open_in_browser" = "Open in Default Browser";
+/* accessibility label for panel close (× = leave overlay) */
+"common.exit_selection" = "Exit Circle to Search";
+/* text field placeholder for nano-banana image edit */
+"common.edit_placeholder" = "Describe how to edit this image…";
+/* disabled translate button help */
+"common.needs_macos15" = "Requires macOS 15 or later";
+/* menu bar item that starts a selection */
+"menu.capture_now" = "Circle to Search";
+/* menu bar warning item */
+"menu.needs_screen_permission" = "Screen Recording Required…";
+/* menu bar item */
+"menu.settings" = "Settings…";
+/* menu bar item */
+"menu.welcome_guide" = "Welcome Guide…";
+/* menu bar item */
+"menu.quit" = "Quit Ringgo";
+/* settings window title */
+"settings.window_title" = "Ringgo Settings";
+/* settings tab */
+"settings.tab.general" = "General";
+/* settings tab + appearance section header */
+"settings.tab.appearance" = "Appearance";
+/* settings tab + search section header */
+"settings.tab.search" = "Search";
+/* settings tab */
+"settings.tab.permissions" = "Permissions";
+/* settings tab */
+"settings.tab.about" = "About";
+/* section header above main hotkey */
+"settings.general.section.capture" = "Circle to Search";
+/* section header */
+"settings.general.section.more_triggers" = "More Ways to Activate";
+/* section header */
+"settings.general.section.launch" = "Launch";
+/* toggle */
+"settings.charge.toggle" = "Press-and-Hold";
+/* toggle caption */
+"settings.charge.caption" = "Hold ⌘⇧ for about 250 ms to activate; release before the threshold to cancel.";
+/* toggle */
+"settings.double_shift.toggle" = "Double-Tap Shift";
+/* toggle caption */
+"settings.double_shift.caption" = "Optional; requires Accessibility permission, which is requested only when enabled.";
+/* warning row */
+"settings.double_shift.no_ax" = "Accessibility permission not granted yet";
+/* toggle */
+"settings.multitouch.toggle" = "Three-Finger Double-Tap on Trackpad (Experimental)";
+/* toggle caption */
+"settings.multitouch.caption" = "Double-tap with three fingers in any foreground app. No Accessibility permission needed; may conflict with system three-finger gestures.";
+/* status row, %d = count */
+"settings.multitouch.connected" = "%d trackpad(s) connected";
+/* status row */
+"settings.multitouch.sleeping" = "Sleeping; will reconnect automatically on wake";
+/* toggle */
+"settings.launch_at_login.toggle" = "Launch Ringgo at Login";
+/* toggle caption */
+"settings.launch_at_login.caption" = "Starts silently in the menu bar when you log in to your Mac.";
+/* appearance option */
+"appearance.system" = "System";
+/* appearance option */
+"appearance.dark" = "Dark";
+/* appearance option */
+"appearance.light" = "Light";
+/* toggle */
+"settings.reduce_effects.toggle" = "Reduce Motion Effects";
+/* toggle caption */
+"settings.reduce_effects.caption" = "Turns off decorative animations like shimmer and ripple; panels fade instead.";
+/* labeled content */
+"settings.search.default_engine" = "Default Engine";
+/* caption */
+"settings.search.engine_caption" = "Google is supported today; more engines are planned.";
+/* section header */
+"settings.search.ocr_section" = "Text Recognition";
+/* labeled content */
+"settings.search.ocr_language" = "OCR Language";
+/* labeled content value */
+"settings.search.ocr_auto" = "Automatic";
+/* caption */
+"settings.search.ocr_caption" = "Recognized on-device by Apple Vision, supporting Chinese, English, Japanese, Korean, and more.";
+/* section header (noun) */
+"settings.search.translation_section" = "Translation";
+/* picker label */
+"settings.search.translate_to" = "Translate To";
+/* picker option, %@ = system language name */
+"settings.search.follow_system" = "Match System (%@)";
+/* caption */
+"settings.search.translation_caption" = "Target language for translating selected text or images; stays in sync with the selection toolbar. Full-screen translation requires macOS 15 or later.";
+/* section header */
+"settings.perm.screen_section" = "Screen Recording";
+/* permission row title */
+"settings.perm.screen_title" = "Screen Recording";
+/* permission row detail */
+"settings.perm.screen_detail" = "Captures a single frame of the screen when you start a selection. No video is recorded and nothing is uploaded automatically.";
+/* hint row */
+"settings.perm.screen_restart_hint" = "After allowing, restart Ringgo for it to take effect.";
+/* section header */
+"settings.perm.ax_section" = "Accessibility";
+/* permission row title */
+"settings.perm.ax_title" = "Accessibility";
+/* permission row detail */
+"settings.perm.ax_detail" = "Needed only for “Double-Tap Shift”; the main shortcut and press-and-hold don’t require it.";
+/* version fallback */
+"settings.about.dev_build" = "Development Build";
+/* %@ = version string */
+"settings.about.version" = "Version %@";
+/* button */
+"settings.about.show_welcome" = "Show Welcome Guide";
+/* window title + hero heading */
+"welcome.title" = "Welcome to Ringgo";
+/* hero subtitle */
+"welcome.subtitle" = "Circle anything on your screen to search instantly.";
+/* feature row title */
+"welcome.feature.circle.title" = "Circle Anything";
+/* feature row detail */
+"welcome.feature.circle.detail" = "Draw a circle, swipe, or tap to select text and images on screen.";
+/* feature row title */
+"welcome.feature.search.title" = "Instant Search";
+/* feature row detail */
+"welcome.feature.search.detail" = "Results open in a floating panel without interrupting your work.";
+/* feature row title */
+"welcome.feature.more.title" = "Translate and More";
+/* feature row detail */
+"welcome.feature.more.detail" = "Translate on the spot, visualize content, and edit images—all from a selection.";
+/* button */
+"welcome.continue" = "Continue";
+/* step heading */
+"welcome.setup.title" = "Finish Setup";
+/* step subtitle */
+"welcome.setup.subtitle" = "Allow screen recording, then confirm two common preferences.";
+/* button */
+"welcome.back" = "Back";
+/* button */
+"welcome.get_started" = "Get Started";
+/* card title */
+"welcome.perm.title" = "Screen Recording Permission";
+/* card detail */
+"welcome.perm.detail" = "Captures a single frame only when you activate it. No video is recorded and nothing is uploaded automatically.";
+/* button */
+"welcome.perm.authorize" = "Allow…";
+/* hint row */
+"welcome.perm.restart_hint" = "After allowing in System Settings, restart Ringgo for it to take effect.";
+/* button (with ellipsis) */
+"welcome.open_system_settings" = "Open System Settings…";
+/* button (short) */
+"welcome.restart" = "Restart";
+/* row title */
+"welcome.hotkey.title" = "Activation Shortcut";
+/* row caption */
+"welcome.hotkey.caption" = "You can change this later in Settings → General.";
+/* toggle */
+"welcome.launch_at_login" = "Automatically Launch Ringgo at Login";
+/* labeled content + a11y label */
+"hotkey.label" = "Selection Shortcut";
+/* button help while recording */
+"hotkey.help_recording" = "Press Esc to cancel recording";
+/* button help idle */
+"hotkey.help_idle" = "Click to change the shortcut";
+/* a11y value while recording */
+"hotkey.recording" = "Recording";
+/* a11y hint while recording */
+"hotkey.hint_recording" = "Press the new key combination";
+/* a11y hint idle */
+"hotkey.hint_idle" = "Press to record a new shortcut";
+/* reset button help; keep ⌘⇧S symbols */
+"hotkey.reset_help" = "Reset to ⌘⇧S";
+/* recorder placeholder */
+"hotkey.enter_new" = "Enter a new shortcut…";
+/* helper text */
+"hotkey.helper_recording" = "Press the new key combination; Esc to cancel.";
+/* helper text */
+"hotkey.helper_idle" = "Press it in any app to start a selection.";
+/* validation */
+"hotkey.need_modifier" = "A global shortcut must include at least one modifier key (⌘⌥⌃⇧).";
+/* keycap name for space */
+"key.space" = "Space";
+/* keycap name for unknown key code, %d = code */
+"key.generic" = "Key %d";
+/* search field placeholder */
+"bottombar.search_placeholder" = "Search the screen, or ask a question…";
+/* mic button help */
+"bottombar.dictation_help" = "Dictation (enable in System Settings)";
+/* mic button a11y label */
+"bottombar.dictation_a11y" = "Start Dictation";
+/* translate button help, %@ = target language name */
+"bottombar.translate_help" = "Translate the whole screen (%@); hover to switch the target language";
+/* translate button a11y label, %@ = target language name */
+"bottombar.translate_a11y" = "Translate the whole screen to %@";
+/* a11y label for the mini toolbar */
+"minitoolbar.a11y" = "Selection toolbar";
+/* chip: switch selection type text→image */
+"minitoolbar.switch_to_image" = "Select as Image";
+/* chip: switch selection type image→text */
+"minitoolbar.switch_to_text" = "Select as Text";
+/* caption + a11y value when no text under selection */
+"minitoolbar.no_text" = "No text detected";
+/* a11y label for edit submit button */
+"minitoolbar.submit_edit_a11y" = "Submit edit instruction";
+/* a11y label of a highlighted action button, %@ = button title */
+"minitoolbar.button_active" = "%@ (active, tap to exit)";
+/* armed state label */
+"confirmopen.confirm" = "Confirm Open";
+/* button help when armed */
+"confirmopen.help_armed" = "Tap again: open and exit Circle to Search";
+/* a11y label when armed */
+"confirmopen.a11y_armed" = "Confirm opening in browser";
+/* a11y label idle */
+"confirmopen.a11y_idle" = "Open in browser";
+/* disabled reason for open-in-browser */
+"result.lens_bound_reason" = "Lens results are tied to this panel’s session and won’t work in an external browser";
+/* disabled reason for open-in-browser */
+"result.page_not_loaded" = "Page hasn’t loaded yet";
+/* a11y hint on drag strip */
+"result.drag_hint" = "Drag to move the panel";
+/* search pill placeholder in image-search mode */
+"result.add_to_search" = "Add to search";
+/* error card button */
+"result.login_google" = "Sign in to Google";
+/* lens blocked message */
+"result.blocked_403" = "Google refused anonymous access (403). Sign in to Google once in the panel to search images normally.";
+/* %@ = error description */
+"result.image_search_network_failed" = "Image search network connection failed: %@";
+/* a11y label for detail panel browser back button (‹) */
+"detail.back" = "Back";
+/* a11y label for detail panel browser forward button (›) */
+"detail.forward" = "Forward";
+/* a11y label for detail panel close button (×) */
+"detail.close" = "Close details";
+/* failure message */
+"translate.no_translatable" = "The selection contains no translatable text";
+/* %@ = language name */
+"translate.already_target" = "This already looks like %@; try a different target language";
+/* %1$@ = source lang, %2$@ = target lang */
+"translate.unsupported" = "Translation from %1$@ → %2$@ isn’t supported yet";
+/* failure message */
+"translate.download_incomplete" = "Model download didn’t finish";
+/* window title */
+"translate.download_window_title" = "Download Translation Model";
+/* download window status */
+"translate.requesting_download" = "Requesting download…";
+/* %@ = 'source → target' description */
+"translate.preparing_model" = "Preparing the %@ translation model";
+/* internal error */
+"translate.plumbing_error" = "Translation results are missing line identifiers and can’t be mapped back to the source";
+/* progress capsule */
+"translate.translating" = "Translating…";
+/* progress, %1$d done, %2$d total */
+"translate.translating_progress" = "Translating %1$d/%2$d";
+/* %@ = 'source → target' description */
+"translate.needs_download" = "The %@ translation model needs to be downloaded first";
+/* button */
+"translate.download_button" = "Download";
+/* Gemini prompt; %1$@ = target language name, %2$@ = selected text */
+"prompt.translate_text" = "Translate the following text into %1$@:\n\n%2$@";
+/* Gemini prompt; %@ = selected text */
+"prompt.visualize_text" = "Visualize the following content: if it suits data or structure, create a visualization (infographic, flowchart, comparison table, etc.); if a picture fits better, use nano banana to generate an image:\n\n%@";
+/* Gemini prompt; %@ = target language name */
+"prompt.translate_image" = "Translate all the text in this image into %@, preserving the original structure and reading order.";
+/* Gemini prompt */
+"prompt.visualize_image" = "Visualize the content of this image: if it suits data or structure, create a visualization (infographic, flowchart, comparison table, etc.); if a picture fits better, use nano banana to generate a new image.";
+/* Gemini prompt; %@ = user instruction */
+"prompt.edit_image" = "Use nano banana to edit this image and generate the edited image directly. Editing request: %@";
+/* mode chip; %@ = target language name */
+"chip.translate" = "Translate · %@";
+/* mode chip; keep 'Nano Banana' */
+"chip.edit" = "Edit · Nano Banana";
+/* error card message */
+"error.image_search_failed" = "Image search failed. Please try again.";
+/* alert title */
+"alert.hotkey_failed_title" = "Failed to Register Shortcut";
+/* alert title */
+"alert.capture_failed_title" = "Can’t Capture the Screen";
+/* alert body */
+"alert.capture_no_permission_body" = "Please allow Ringgo in System Settings → Privacy & Security → Screen Recording.\nIf you already allowed it, restart Ringgo for it to take effect.";
+/* alert button (no ellipsis) */
+"alert.open_system_settings" = "Open System Settings";
+/* alert title */
+"alert.relaunch_failed_title" = "Can’t Restart Ringgo";
+/* alert body */
+"alert.relaunch_failed_body" = "The system didn’t launch a new Ringgo instance. Please quit manually and reopen the app.";
+/* login item pending approval */
+"settings.launch.requires_approval" = "Requested. Please allow Ringgo in System Settings → General → Login Items.";
+/* %@ = error description */
+"settings.launch.enable_failed" = "Couldn’t turn on Launch at Login: %@";
+/* %@ = error description */
+"settings.launch.disable_failed" = "Couldn’t turn off Launch at Login: %@";
+/* error description */
+"capture.err.no_permission" = "No Screen Recording permission.";
+/* error description */
+"capture.err.no_display" = "No available display found.";
+/* error description (detail appended after) */
+"capture.err.failed" = "Screen capture failed.";
+/* %d = status */
+"hotkey.err.register" = "Failed to register the shortcut (OSStatus %d). It may already be used by another app; please change it in Settings.";
+/* %d = status */
+"hotkey.err.handler" = "Failed to install the shortcut event handler (OSStatus %d).";
+/* error */
+"hotkey.err.need_ax" = "“Double-Tap Shift” requires Accessibility permission. Please allow Ringgo in System Settings → Privacy & Security → Accessibility.";
+/* error */
+"multitouch.err.init_failed" = "Three-finger touch initialization failed.";
+/* error description */
+"lens.err.encoding_failed" = "Image encoding failed.";
