@@ -274,41 +274,33 @@ struct OverlayRootView: View {
         }
     }
 
-    // MARK: - F24 窗口手柄(spec S7:悬停窗口微光高亮 + 右下角手柄;视觉层,命中在 VM)
+    // MARK: - F24 v2 窗口角标(2026-07-17 用户拍板:全部可见窗口右下角常驻;
+    // 悬停角标 → 该窗高亮预览;视觉层 hitTesting(false),命中在 VM)
 
-    /// 动画范式对齐 rectOverlay:transition 挂条件内部、动画挂条件外的容器,
-    /// 否则插入/移除拿不到 transaction,淡入淡出根本不生效;
-    /// 减弱动态:保留淡入淡出、换窗位移直切(与本文件其余各层一致)。
+    /// 动画范式对齐 rectOverlay:transition 挂条件内部、动画挂条件外的容器;
+    /// 减弱动态:保留淡入淡出、位移直切(与本文件其余各层一致)。
     private func windowHandleLayer(size: CGSize) -> some View {
         let motionReduced = reduceMotion || reduceEffects
+        let hoveredID = viewModel.hoveredWindowHandle?.windowID
         return ZStack(alignment: .topLeading) {
-            if let info = viewModel.windowHandleInfo {
-                Group {
-                    RoundedRectangle(cornerRadius: 9, style: .continuous)
-                        .strokeBorder(.white.opacity(0.9), lineWidth: 2)
-                        .frame(width: info.frame.width, height: info.frame.height)
-                        .shadow(color: Color.accentColor.opacity(0.35), radius: 14)
-                        .offset(x: info.frame.minX, y: info.frame.minY)
-                    ZStack {
-                        Circle()
-                            .fill(.regularMaterial)
-                        Circle()
-                            .strokeBorder(.white.opacity(0.35), lineWidth: 0.5)
-                        Image(systemName: "magnifyingglass")
-                            .font(.system(size: 11, weight: .semibold))
-                            .foregroundStyle(.primary)
-                    }
-                    .frame(width: 22, height: 22)
-                    .shadow(color: .black.opacity(0.35), radius: 5, y: 2)
-                    .offset(x: info.handleCenter.x - 11, y: info.handleCenter.y - 11)
-                }
-                .transition(.opacity)
+            if let hovered = viewModel.hoveredWindowHandle {
+                RoundedRectangle(cornerRadius: 9, style: .continuous)
+                    .strokeBorder(.white.opacity(0.9), lineWidth: 2)
+                    .frame(width: hovered.frame.width, height: hovered.frame.height)
+                    .shadow(color: Color.accentColor.opacity(0.35), radius: 14)
+                    .offset(x: hovered.frame.minX, y: hovered.frame.minY)
+                    .transition(.opacity)
+            }
+            ForEach(viewModel.displayedWindowHandles, id: \.windowID) { handle in
+                WindowCornerGlyph(hovered: handle.windowID == hoveredID)
+                    .offset(x: handle.corner.x - WindowCornerGlyph.size,
+                            y: handle.corner.y - WindowCornerGlyph.size)
+                    .transition(.opacity)
             }
         }
         .animation(.easeOut(duration: motionReduced ? 0.12 : 0.18),
-                   value: viewModel.windowHandleInfo == nil)
-        .animation(motionReduced ? nil : .easeOut(duration: 0.18),
-                   value: viewModel.windowHandleInfo?.frame)
+                   value: viewModel.displayedWindowHandles.isEmpty)
+        .animation(motionReduced ? nil : .easeOut(duration: 0.15), value: hoveredID)
     }
 
     // MARK: - 迷你工具条(选区尾部,不压选区;拖拽中由 miniToolbarKind 抑制)
@@ -488,6 +480,40 @@ private struct StrokedBracketsShape: Shape {
         CornerBracketsShape(rect: rect)
             .path(in: r)
             .strokedPath(StrokeStyle(lineWidth: lineWidth, lineCap: .round, lineJoin: .round))
+    }
+}
+
+/// F24 v2 窗口角标:右下角单枚「臂-圆角-臂」L 形(与选区四角括号 CornerBracketsShape
+/// 同一语汇,用户拍板「抽象一点,像搜索框右下角那个角」)。平时淡淡的(0.55),
+/// 悬停 = 提亮 + accent 微光,预告「点下去选整窗」。
+private struct WindowCornerGlyph: View {
+    let hovered: Bool
+    /// 外接方框边长(角形的两臂各 ~12pt)。
+    static let size: CGFloat = 14
+
+    var body: some View {
+        BottomRightCornerShape()
+            .stroke(.white.opacity(hovered ? 0.95 : 0.55),
+                    style: StrokeStyle(lineWidth: 2.5, lineCap: .round, lineJoin: .round))
+            .frame(width: Self.size, height: Self.size)
+            .shadow(color: hovered ? Color.accentColor.opacity(0.6) : .black.opacity(0.4),
+                    radius: hovered ? 6 : 2, y: 1)
+            .scaleEffect(hovered ? 1.18 : 1, anchor: .bottomTrailing)
+    }
+}
+
+/// 右下角单角路径:竖臂下行 → 圆角 → 横臂左行(CornerBracketsShape 右下角同款几何)。
+private struct BottomRightCornerShape: Shape {
+    func path(in rect: CGRect) -> Path {
+        let arm = rect.width
+        let r = min(6, arm * 0.45)
+        var p = Path()
+        p.move(to: CGPoint(x: rect.maxX, y: rect.maxY - arm))
+        p.addLine(to: CGPoint(x: rect.maxX, y: rect.maxY - r))
+        p.addQuadCurve(to: CGPoint(x: rect.maxX - r, y: rect.maxY),
+                       control: CGPoint(x: rect.maxX, y: rect.maxY))
+        p.addLine(to: CGPoint(x: rect.maxX - arm, y: rect.maxY))
+        return p
     }
 }
 

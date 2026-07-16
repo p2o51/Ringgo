@@ -37,14 +37,16 @@ final class SelectionViewModel: ObservableObject {
     /// 当前高亮词(笔刷实时选区与定格选中共用)。
     @Published private(set) var highlightedWords: [OCRWord] = []
     /// 悬停位置(hover affordance 用,不进手势状态机)。
-    @Published var hoverLocation: CGPoint? {
-        didSet { updateWindowHover() }
+    @Published var hoverLocation: CGPoint?
+    /// F24 v2 会话级窗口快照(coordinator 注入;front-to-back,覆盖层坐标)。
+    /// 注入即换算成「所有可见窗口的常驻角标」(遮挡剔除在 Core 纯函数里)。
+    var pickableWindows: [PickableWindow] = [] {
+        didSet {
+            windowHandles = WindowCornerHandles.visible(in: pickableWindows, viewport: viewport)
+        }
     }
-    /// F24 会话级窗口快照(coordinator 注入;front-to-back,覆盖层坐标)。
-    /// 只作命中数据源,渲染由 hoveredPickableWindow 驱动。
-    var pickableWindows: [PickableWindow] = []
-    /// F24 悬停稳定(≥120ms)的窗口——高亮框与手柄据此渲染(spec S7 防闪)。
-    @Published private(set) var hoveredPickableWindow: PickableWindow?
+    /// F24 v2 可见角标(2026-07-17 用户拍板:每个窗口右下角都有,不只悬停窗)。
+    @Published private(set) var windowHandles: [WindowCornerHandle] = []
     /// F9 二维码结果(圈选区域解出二维码时,由 coordinator 检测后回填):
     /// 仅在图片选区(miniToolbarKind == .image)下于工具条按钮行下方渲染成卡片。
     /// 换选区/退出即清空,防上一次选区的码串到新选区。
@@ -81,13 +83,8 @@ final class SelectionViewModel: ObservableObject {
     private let thinningDistance: CGFloat = 2
     private let tapRectSide: CGFloat = 160
     private let minRectSide: CGFloat = 40
-    /// F24 窗口手柄:22pt 圆钮(半径 11)、右下内缩 12pt、悬停 120ms 稳定期。
-    private let windowHandleRadius: CGFloat = 11
-    private let windowHandleInset: CGFloat = 12
-    private let windowHoverDelayMs = 120
-    private var windowHoverWorkItem: DispatchWorkItem?
-    /// 正在等稳定期的候选窗(指针在同一窗内移动时不重置计时)。
-    private var pendingHoverWindowID: UInt32?
+    /// F24 v2 角标命中半径(以角标锚点为圆心)。
+    private let windowHandleHitRadius: CGFloat = 16
 
     /// OCR 尚未完成时落地的手势:记下原始意图,词框到达后再定夺
     /// (点在词上 → 选词;划过词 → 文本选择;否则矩形 → 图搜)。
@@ -122,11 +119,7 @@ final class SelectionViewModel: ObservableObject {
         pendingGesture = nil
         focusedExtras = []
         barcodeResult = nil
-        pickableWindows = []
-        hoveredPickableWindow = nil
-        pendingHoverWindowID = nil
-        windowHoverWorkItem?.cancel()
-        windowHoverWorkItem = nil
+        pickableWindows = [] // didSet 顺带清空 windowHandles
     }
 
     /// OCR 词框到达 → 重建引擎(补刀词并入,见 focusedExtras);
@@ -272,71 +265,36 @@ final class SelectionViewModel: ObservableObject {
         return word
     }
 
-    // MARK: - F24 窗口手柄(spec S7)
+    // MARK: - F24 v2 窗口角标(2026-07-17 用户拍板:全窗常驻,不只悬停窗)
 
-    /// 悬停窗口的高亮框(裁进视口)+ 右下角手柄中心。
-    /// 只在**无选区、无手势**时出现——有选区时它只是视觉噪音;
-    /// 手势天然优先:拖拽 ≥4pt 即升级笔刷,手柄只拦「正中圆钮的轻点」。
-    var windowHandleInfo: (frame: CGRect, handleCenter: CGPoint)? {
-        guard case .none = state, dragMode == nil,
-              let win = hoveredPickableWindow else { return nil }
-        let frame = win.frame.intersection(CGRect(origin: .zero, size: viewport))
-        guard !frame.isNull, frame.width >= 60, frame.height >= 44 else { return nil }
-        let center = CGPoint(x: frame.maxX - windowHandleInset - windowHandleRadius,
-                             y: frame.maxY - windowHandleInset - windowHandleRadius)
-        return (frame, center)
+    /// 渲染用角标列表:笔刷/拖拽进行中隐藏(不与手势抢注意力),其余时刻常驻。
+    var displayedWindowHandles: [WindowCornerHandle] {
+        guard dragMode == nil, !isBrushing else { return [] }
+        return windowHandles
     }
 
-    /// 点手柄 = 整窗外框作为选区(F6 矩形语义:可再调、工具条照常)→ 直接图搜。
+    /// 悬停中的角标(命中半径内)→ 其窗口高亮预览「点下去选它」。
+    var hoveredWindowHandle: WindowCornerHandle? {
+        guard let p = hoverLocation else { return nil }
+        return windowHandleHit(at: p)
+    }
+
+    private func windowHandleHit(at p: CGPoint) -> WindowCornerHandle? {
+        guard dragMode == nil, !isBrushing else { return nil }
+        return windowHandles.first {
+            hypot(p.x - $0.corner.x, p.y - $0.corner.y) <= windowHandleHitRadius
+        }
+    }
+
+    /// 点角标 = 整窗外框作为选区(F6 矩形语义:可再调、工具条照常)→ 直接图搜。
     func selectWindowRect(_ frame: CGRect) {
         pendingGesture = nil
         clearSelection()
-        hoveredPickableWindow = nil
         let rect = clampRect(frame)
         guard rect.width >= 4, rect.height >= 4 else { return }
         state = .rectSelection(rect: rect)
         Haptics.confirm() // 整窗落框
         route(rect: rect)
-    }
-
-    /// 悬停 → 候选窗口,同一窗内移动不重置计时;换窗/落空清零。
-    /// 渲染门槛(state/dragMode)由 windowHandleInfo 把关,这里只维护稳定悬停。
-    private func updateWindowHover() {
-        guard let p = hoverLocation, !pickableWindows.isEmpty else {
-            windowHoverWorkItem?.cancel()
-            windowHoverWorkItem = nil
-            pendingHoverWindowID = nil
-            if hoveredPickableWindow != nil { hoveredPickableWindow = nil }
-            return
-        }
-        let candidate = WindowHitTest.topmost(at: p, in: pickableWindows)
-        if candidate?.windowID == hoveredPickableWindow?.windowID {
-            pendingHoverWindowID = nil
-            windowHoverWorkItem?.cancel()
-            windowHoverWorkItem = nil
-            return
-        }
-        guard let candidate else {
-            windowHoverWorkItem?.cancel()
-            windowHoverWorkItem = nil
-            pendingHoverWindowID = nil
-            hoveredPickableWindow = nil
-            return
-        }
-        guard candidate.windowID != pendingHoverWindowID else { return } // 已在计时
-        pendingHoverWindowID = candidate.windowID
-        windowHoverWorkItem?.cancel()
-        let work = DispatchWorkItem { [weak self] in
-            MainActor.assumeIsolated {
-                guard let self, self.pendingHoverWindowID == candidate.windowID else { return }
-                self.pendingHoverWindowID = nil
-                self.windowHoverWorkItem = nil
-                self.hoveredPickableWindow = candidate
-            }
-        }
-        windowHoverWorkItem = work
-        DispatchQueue.main.asyncAfter(deadline: .now() + .milliseconds(windowHoverDelayMs),
-                                      execute: work)
     }
 
     // MARK: - F24 📸 选区截图(spec S8)
@@ -433,11 +391,10 @@ final class SelectionViewModel: ObservableObject {
     /// 点文字 = 重新选区;点空白/图片 = 直接出新框(与点文字对称,无「先关面板」缓冲)。
     /// 退出只走 Esc / 再按一次热键;只想收面板用下拉或面板上的 ×。
     private func handleTap(at p: CGPoint) {
-        // F24 窗口手柄:点中圆钮 = 整窗即搜(spec S7)。只有圆钮可点,
+        // F24 v2 窗口角标:点中角标 = 整窗即搜。只有角标命中区可点,
         // 其余位置保持既有轻点语义;拖拽在 dragChanged 已优先升级,不经这里。
-        if let info = windowHandleInfo,
-           hypot(p.x - info.handleCenter.x, p.y - info.handleCenter.y) <= windowHandleRadius + 4 {
-            selectWindowRect(info.frame)
+        if let handle = windowHandleHit(at: p) {
+            selectWindowRect(handle.frame)
             return
         }
         if let word = engine?.tappedWord(at: p) {

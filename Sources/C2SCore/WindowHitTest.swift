@@ -30,3 +30,44 @@ public enum WindowHitTest {
         windows.first { $0.frame.contains(point) }
     }
 }
+
+/// F24 v2(2026-07-17 用户拍板):**所有**可见窗口右下角常驻一枚「角标」手柄,
+/// 不再只给悬停窗。被更前窗口遮住角的不画(角标会浮在别人内容上)。
+public struct WindowCornerHandle: Sendable, Equatable {
+    public let windowID: UInt32
+    /// 窗口 frame 裁进视口后的矩形(覆盖层坐标;点角标 = 以它为选区)。
+    public let frame: CGRect
+    /// 角标锚点 = 裁剪后 frame 右下角**内缩 inset**(角形的外角顶点落在这)。
+    public let corner: CGPoint
+
+    public init(windowID: UInt32, frame: CGRect, corner: CGPoint) {
+        self.windowID = windowID
+        self.frame = frame
+        self.corner = corner
+    }
+}
+
+public enum WindowCornerHandles {
+    /// 计算可见角标:`windows` front-to-back;逐窗裁进视口、右下角内缩 inset;
+    /// 角标命中区(hitSize 方块)与任何**更前**窗口的 frame 相交 = 被遮挡,剔除。
+    public static func visible(in windows: [PickableWindow],
+                               viewport: CGSize,
+                               inset: CGFloat = 10,
+                               hitSize: CGFloat = 22) -> [WindowCornerHandle] {
+        guard viewport.width > 0, viewport.height > 0 else { return [] }
+        let viewportRect = CGRect(origin: .zero, size: viewport)
+        var result: [WindowCornerHandle] = []
+        for (index, window) in windows.enumerated() {
+            let clipped = window.frame.intersection(viewportRect)
+            guard !clipped.isNull, clipped.width >= 60, clipped.height >= 44 else { continue }
+            let corner = CGPoint(x: clipped.maxX - inset, y: clipped.maxY - inset)
+            let hitRect = CGRect(x: corner.x - hitSize / 2, y: corner.y - hitSize / 2,
+                                 width: hitSize, height: hitSize)
+            let occluded = windows[..<index].contains { $0.frame.intersects(hitRect) }
+            guard !occluded else { continue }
+            result.append(WindowCornerHandle(windowID: window.windowID,
+                                             frame: clipped, corner: corner))
+        }
+        return result
+    }
+}
