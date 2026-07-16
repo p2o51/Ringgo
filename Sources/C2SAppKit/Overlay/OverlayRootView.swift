@@ -20,6 +20,8 @@ struct OverlayRootView: View {
     var onTranslateImage: () -> Void = {}
     var onVisualizeImage: () -> Void = {}
     var onSubmitImageEdit: (String) -> Void = { _ in }
+    /// F24 📸:当前选区落成完整截图产物(覆盖层不退,spec S8)。
+    var onShootSelection: (CGRect) -> Void = { _ in }
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     /// 图片选区「编辑」内联输入展开中(参与迷你工具条尺寸估算/摆位;换选区即收起)。
@@ -49,6 +51,8 @@ struct OverlayRootView: View {
             textHandles
                 .allowsHitTesting(false)
             rectOverlay(size: size)
+                .allowsHitTesting(false)
+            windowHandleLayer(size: size)
                 .allowsHitTesting(false)
             interactionLayer(size: size)
             translationLayer
@@ -270,6 +274,43 @@ struct OverlayRootView: View {
         }
     }
 
+    // MARK: - F24 窗口手柄(spec S7:悬停窗口微光高亮 + 右下角手柄;视觉层,命中在 VM)
+
+    /// 动画范式对齐 rectOverlay:transition 挂条件内部、动画挂条件外的容器,
+    /// 否则插入/移除拿不到 transaction,淡入淡出根本不生效;
+    /// 减弱动态:保留淡入淡出、换窗位移直切(与本文件其余各层一致)。
+    private func windowHandleLayer(size: CGSize) -> some View {
+        let motionReduced = reduceMotion || reduceEffects
+        return ZStack(alignment: .topLeading) {
+            if let info = viewModel.windowHandleInfo {
+                Group {
+                    RoundedRectangle(cornerRadius: 9, style: .continuous)
+                        .strokeBorder(.white.opacity(0.9), lineWidth: 2)
+                        .frame(width: info.frame.width, height: info.frame.height)
+                        .shadow(color: Color.accentColor.opacity(0.35), radius: 14)
+                        .offset(x: info.frame.minX, y: info.frame.minY)
+                    ZStack {
+                        Circle()
+                            .fill(.regularMaterial)
+                        Circle()
+                            .strokeBorder(.white.opacity(0.35), lineWidth: 0.5)
+                        Image(systemName: "magnifyingglass")
+                            .font(.system(size: 11, weight: .semibold))
+                            .foregroundStyle(.primary)
+                    }
+                    .frame(width: 22, height: 22)
+                    .shadow(color: .black.opacity(0.35), radius: 5, y: 2)
+                    .offset(x: info.handleCenter.x - 11, y: info.handleCenter.y - 11)
+                }
+                .transition(.opacity)
+            }
+        }
+        .animation(.easeOut(duration: motionReduced ? 0.12 : 0.18),
+                   value: viewModel.windowHandleInfo == nil)
+        .animation(motionReduced ? nil : .easeOut(duration: 0.18),
+                   value: viewModel.windowHandleInfo?.frame)
+    }
+
     // MARK: - 迷你工具条(选区尾部,不压选区;拖拽中由 miniToolbarKind 抑制)
 
     @ViewBuilder private func miniToolbar(size: CGSize) -> some View {
@@ -318,6 +359,7 @@ struct OverlayRootView: View {
                 reduceEffects: reduceEffects || reduceMotion,
                 onTranslate: { onToggleTranslateSelection() },
                 onVisualize: { onToggleVisualizeSelection() },
+                onShoot: { if let rect = viewModel.shotRect { onShootSelection(rect) } },
                 onSwitchToImage: { viewModel.switchSelectionToImage() })
                 .id("text-\(Int(bounds.minX))-\(Int(bounds.minY))-\(Int(bounds.width))")
         case .image:
@@ -329,6 +371,7 @@ struct OverlayRootView: View {
                 onVisualize: { onVisualizeImage() },
                 editExpanded: $imageEditExpanded,
                 onEditSubmit: { onSubmitImageEdit($0) },
+                onShoot: { if let rect = viewModel.shotRect { onShootSelection(rect) } },
                 onSwitchToText: {
                     let outcome = await viewModel.switchSelectionToText()
                     if outcome == .noText { Haptics.align() } // 「没有可选的」轻提示

@@ -22,6 +22,10 @@ struct SelectionMiniToolbar: View {
     /// 编辑指令提交(nano banana);nil = 不显示编辑按钮。
     var onEditSubmit: ((String) -> Void)?
 
+    /// F24 📸(spec S8):当前选区落成完整截图产物(剪贴板+托盘+按设置落盘),
+    /// 覆盖层不退;与 ⌘C(只进剪贴板)分工。两种选区都有。nil = 不显示。
+    var onShoot: (() -> Void)?
+
     /// 「改选」chip(独立小胶囊,与动作胶囊隔开——语义是切换选区类型,不是操作):
     /// .text → 「改选图片」(图上文字被误选时改回框选);nil = 不显示。
     var onSwitchToImage: (() -> Void)?
@@ -59,19 +63,37 @@ struct SelectionMiniToolbar: View {
         static let hairline: CGFloat = 0.5
         static let gap: CGFloat = 10             // 工具条与选区的间隙
         static let screenMargin: CGFloat = 8     // 屏幕边缘留白
-        /// 单按钮内容估算宽:SF 图标 ~14pt + 间距 5 + 两个汉字(12pt medium)~25pt。
-        static let estimatedButtonContentWidth: CGFloat = 44
-        /// 三字按钮(可视化)的内容估算宽:多一个汉字 ~13pt。
-        static let estimatedWideButtonContentWidth: CGFloat = 57
+        /// SF 图标估算宽(12pt medium 符号 ~14pt,留 1pt 余量)。
+        static let iconWidth: CGFloat = 15
         /// 编辑内联输入框宽 / 提交按钮区宽(图标 16 + 左右 padding)。
         static let editFieldWidth: CGFloat = 210
         static let editSubmitWidth: CGFloat = 26
         static let editFieldLeadingGap: CGFloat = 8
         /// 「改选」chip 与动作胶囊的间隔(独立胶囊,视觉隔开)。
         static let switchChipGap: CGFloat = 8
-        /// chip 内容估算宽:SF 图标 ~14 + 间距 5 + 四个汉字(12pt medium)~50。
-        static let switchChipContentWidth: CGFloat = 69
     }
+
+    /// 按钮/chip 标题按**当前语言实测**(F19 之前按两个汉字硬编码,英文
+    /// "Translate/Capture" 实渲染超估算 20-30pt,右贴屏缘时最尾的 📸 会被
+    /// 挤出屏点不到)。会话内标题不变,static let 缓存一次。
+    private static func textWidth(_ text: String) -> CGFloat {
+        let font = NSFont.systemFont(ofSize: Metrics.fontSize, weight: .medium)
+        return ceil((text as NSString).size(withAttributes: [.font: font]).width)
+    }
+    private static func buttonWidth(_ title: String) -> CGFloat {
+        Metrics.iconWidth + Metrics.iconTextSpacing + textWidth(title)
+            + Metrics.buttonPaddingH * 2
+    }
+    private static let translateButtonWidth = buttonWidth(L10n.t("common.translate", "翻译"))
+    private static let visualizeButtonWidth = buttonWidth(L10n.t("common.visualize", "可视化"))
+    private static let editButtonWidth = buttonWidth(L10n.t("common.edit", "编辑"))
+    private static let shootButtonWidth = buttonWidth(L10n.t("minitoolbar.shoot", "截图"))
+    private static let switchToImageChipWidth = Metrics.iconWidth + Metrics.iconTextSpacing
+        + textWidth(L10n.t("minitoolbar.switch_to_image", "改选图片"))
+        + Metrics.paddingH * 2 + Metrics.switchChipGap
+    private static let switchToTextChipWidth = Metrics.iconWidth + Metrics.iconTextSpacing
+        + textWidth(L10n.t("minitoolbar.switch_to_text", "改选文字"))
+        + Metrics.paddingH * 2 + Metrics.switchChipGap
 
     private var motionReduced: Bool { reduceEffects || reduceMotion }
 
@@ -123,6 +145,11 @@ struct SelectionMiniToolbar: View {
                     toolbarButton(icon: "chart.bar.xaxis", title: L10n.t("common.visualize", "可视化"),
                                   action: onVisualize, highlighted: activeMode == .visualize)
                 }
+                if onVisualize != nil, onShoot != nil { divider }
+                if let onShoot {
+                    toolbarButton(icon: "camera", title: L10n.t("minitoolbar.shoot", "截图"),
+                                  action: onShoot)
+                }
             case .image:
                 if editExpanded.wrappedValue, onEditSubmit != nil {
                     // 编辑输入态:[编辑(高亮,点击收起)][指令输入][↑ 提交]
@@ -150,6 +177,12 @@ struct SelectionMiniToolbar: View {
                         toolbarButton(icon: "wand.and.stars", title: L10n.t("common.edit", "编辑"),
                                       action: supersedingSwitch { editExpanded.wrappedValue = true },
                                       highlighted: activeMode == .editImage)
+                    }
+                    // 📸 不 supersede「改选文字」:截图是旁路动作,不改变选区意图
+                    if onEditSubmit != nil, onShoot != nil { divider }
+                    if let onShoot {
+                        toolbarButton(icon: "camera", title: L10n.t("minitoolbar.shoot", "截图"),
+                                      action: onShoot)
                     }
                 }
             }
@@ -344,18 +377,19 @@ struct SelectionMiniToolbar: View {
     /// 若某回调为 nil,实际渲染会窄于估算——工具条右缘略缩进,
     /// 只是视觉右对齐略松,不影响「不相交/不出屏」保证。
     static func estimatedSize(for kind: MiniToolbarKind, editExpanded: Bool = false) -> CGSize {
-        let narrow = Metrics.estimatedButtonContentWidth + Metrics.buttonPaddingH * 2
-        let wide = Metrics.estimatedWideButtonContentWidth + Metrics.buttonPaddingH * 2
-        let chip = Metrics.switchChipContentWidth + Metrics.paddingH * 2 + Metrics.switchChipGap
         let width: CGFloat
         switch kind {
-        case .text:  // [改选图片] [翻译][可视化]
-            width = chip + Metrics.paddingH * 2 + narrow + Metrics.hairline + wide
-        case .image where editExpanded: // [编辑][指令输入][↑](chip 隐藏)
-            width = Metrics.paddingH * 2 + narrow + Metrics.hairline
+        case .text:  // [改选图片] [翻译][可视化][截图]
+            width = switchToImageChipWidth + Metrics.paddingH * 2
+                + translateButtonWidth + visualizeButtonWidth + shootButtonWidth
+                + Metrics.hairline * 2
+        case .image where editExpanded: // [编辑][指令输入][↑](chip 隐藏,📸 隐藏)
+            width = Metrics.paddingH * 2 + editButtonWidth + Metrics.hairline
                 + Metrics.editFieldLeadingGap + Metrics.editFieldWidth + Metrics.editSubmitWidth
-        case .image: // [改选文字] [翻译][可视化][编辑]
-            width = chip + Metrics.paddingH * 2 + narrow * 2 + Metrics.hairline * 2 + wide
+        case .image: // [改选文字] [翻译][可视化][编辑][截图]
+            width = switchToTextChipWidth + Metrics.paddingH * 2
+                + translateButtonWidth + visualizeButtonWidth + editButtonWidth + shootButtonWidth
+                + Metrics.hairline * 3
         }
         return CGSize(width: width, height: Metrics.height)
     }

@@ -50,6 +50,8 @@
 "alert.shot_save_failed_body" = "Couldn't write to %1$@: %2$@\nThe screenshot is still on the clipboard and in the tray — nothing is lost.";
 /* F20 rare failure when CGImageDestination cannot encode the shot */
 "error.shot_encode_failed" = "Image encoding failed.";
+/* F24 mini-toolbar button: turn current selection into a full screenshot product (clipboard+tray+save), overlay stays */
+"minitoolbar.shoot" = "Capture";
 /* F21 tray +n badge tooltip */
 "tray.expand" = "Show All";
 /* F21 tray expanded-list collapse button */

@@ -33,6 +33,7 @@
     "alert.shot_save_failed_body": {"zh-Hans": "写入 %1$@ 失败:%2$@\n截图仍在剪贴板与托盘里,不会丢失。", "en": "Couldn't write to %1$@: %2$@\nThe screenshot is still on the clipboard and in the tray — nothing is lost.", "ja": "%1$@ への書き込みに失敗しました:%2$@\nスクリーンショットはクリップボードとトレイに残っています。", "ctx": "F20 alert body; args = directory path, error"},
     "error.shot_encode_failed":    {"zh-Hans": "图像编码失败。", "en": "Image encoding failed.", "ja": "画像のエンコードに失敗しました。", "ctx": "F20 rare failure when CGImageDestination cannot encode the shot"},
 
+    "minitoolbar.shoot":           {"zh-Hans": "截图", "en": "Capture", "ja": "撮影", "ctx": "F24 mini-toolbar button: turn current selection into a full screenshot product (clipboard+tray+save), overlay stays"},
     "tray.expand":                 {"zh-Hans": "展开全部", "en": "Show All", "ja": "すべて表示", "ctx": "F21 tray +n badge tooltip"},
     "tray.collapse":               {"zh-Hans": "收起", "en": "Collapse", "ja": "たたむ", "ctx": "F21 tray expanded-list collapse button"},
     "tray.save":                   {"zh-Hans": "保存", "en": "Save", "ja": "保存", "ctx": "F21 tray card action tooltip (not yet saved)"},

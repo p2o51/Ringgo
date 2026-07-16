@@ -59,6 +59,8 @@ public final class OverlayWindowController {
         public var onVisualizeImage: () -> Void = {}
         /// 迷你工具条「编辑」指令提交(图片选区:内联输入框回车,nano banana 编辑)。
         public var onSubmitImageEdit: (String) -> Void = { _ in }
+        /// F24 迷你工具条「📸 截图」:选区落成完整截图产物(覆盖层不退,spec S8)。
+        public var onShootSelection: (CGRect) -> Void = { _ in }
         /// 「改选文字」框内无已知词时的定向补刀 OCR(coordinator 裁剪选区重识别;
         /// 返回覆盖层坐标词框,空 = 确实没字)。
         public var onFocusedOCR: (CGRect) async -> [OCRWord] = { _ in [] }
@@ -164,8 +166,15 @@ public final class OverlayWindowController {
                                    onToggleVisualizeSelection: callbacks.onToggleVisualizeSelection,
                                    onTranslateImage: callbacks.onTranslateImage,
                                    onVisualizeImage: callbacks.onVisualizeImage,
-                                   onSubmitImageEdit: callbacks.onSubmitImageEdit)
+                                   onSubmitImageEdit: callbacks.onSubmitImageEdit,
+                                   onShootSelection: callbacks.onShootSelection)
         mountAndShow(root: AnyView(root), screenFrame: capture.context.screenFrame)
+    }
+
+    /// F24 会话级窗口快照到达(圈选模式的窗口手柄数据源,spec S7)。
+    public func updateSearchWindows(_ windows: [PickableWindow]) {
+        guard isPresenting, mode == .search else { return }
+        viewModel.pickableWindows = windows
     }
 
     /// F20 截图模式覆盖层(spec §8 平行模式):精简根视图,跳过 sheet/工具条/翻译装配;

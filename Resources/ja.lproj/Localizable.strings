@@ -50,6 +50,8 @@
 "alert.shot_save_failed_body" = "%1$@ への書き込みに失敗しました:%2$@\nスクリーンショットはクリップボードとトレイに残っています。";
 /* F20 rare failure when CGImageDestination cannot encode the shot */
 "error.shot_encode_failed" = "画像のエンコードに失敗しました。";
+/* F24 mini-toolbar button: turn current selection into a full screenshot product (clipboard+tray+save), overlay stays */
+"minitoolbar.shoot" = "撮影";
 /* F21 tray +n badge tooltip */
 "tray.expand" = "すべて表示";
 /* F21 tray expanded-list collapse button */

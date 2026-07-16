@@ -139,6 +139,9 @@ public final class ShotPipeline {
                                        "写入 %1$@ 失败:%2$@\n截图仍在剪贴板与托盘里,不会丢失。",
                                        directory.path, error.localizedDescription)
         alert.alertStyle = .warning
+        // F24 📸 覆盖层不退:报错窗必须压在覆盖层(.screenSaver)与托盘(+1)之上,
+        // 否则模态循环藏在冻结帧背后,整机表现为假死(点不动、Esc 到不了 key monitor)
+        alert.window.level = NSWindow.Level(rawValue: NSWindow.Level.screenSaver.rawValue + 2)
         alert.runModal()
     }
 }

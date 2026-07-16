@@ -50,6 +50,8 @@
 "alert.shot_save_failed_body" = "写入 %1$@ 失败:%2$@\n截图仍在剪贴板与托盘里,不会丢失。";
 /* F20 rare failure when CGImageDestination cannot encode the shot */
 "error.shot_encode_failed" = "图像编码失败。";
+/* F24 mini-toolbar button: turn current selection into a full screenshot product (clipboard+tray+save), overlay stays */
+"minitoolbar.shoot" = "截图";
 /* F21 tray +n badge tooltip */
 "tray.expand" = "展开全部";
 /* F21 tray expanded-list collapse button */

@@ -280,6 +280,7 @@ public final class AppCoordinator: ObservableObject {
         cb.onTranslateImage = { [weak self] in self?.translateImageSelection() }
         cb.onVisualizeImage = { [weak self] in self?.visualizeImageSelection() }
         cb.onSubmitImageEdit = { [weak self] text in self?.performImageEdit(instruction: text) }
+        cb.onShootSelection = { [weak self] rect in self?.shootSelection(overlayRect: rect) }
         cb.onFocusedOCR = { [weak self] rect in
             await self?.focusedOCR(overlayRect: rect) ?? []
         }
@@ -293,6 +294,9 @@ public final class AppCoordinator: ObservableObject {
                         onPickTranslationTarget: { [weak self] code in
                             self?.settings.translationTargetCode = code
                         })
+
+        // F24 窗口手柄(spec S7):会话级窗口快照,与 shot 模式同一数据源
+        overlay.updateSearchWindows(WindowSnapshotBuilder.pickables(for: result.context))
 
         // 全量词框在 detached Task 里算(不占主线程,features F3)
         ocrTask?.cancel()
@@ -676,6 +680,19 @@ public final class AppCoordinator: ObservableObject {
         lastTextQuery = pending.pillText
         overlay.showResult(.web(multisearch), query: pending.pillText,
                            queryImage: lastLensThumbnail, chip: pending.chip)
+    }
+
+    /// F24 迷你工具条「📸 截图」(spec S8):当前选区落成完整截图产物
+    /// (剪贴板 + 托盘 + 按设置落盘),**覆盖层不退**(可能还要接着搜)。
+    /// 与 ⌘C 的分工:⌘C = 只进剪贴板的轻动作;📸 = 完整产物(可标注、可钉)。
+    private func shootSelection(overlayRect: CGRect) {
+        guard let cap = currentCapture else { return }
+        let px = cap.context.pixelRect(fromOverlay: overlayRect)
+        guard !px.isNull, px.width >= 2, px.height >= 2,
+              let cropped = cap.image.cropping(to: px) else { return }
+        Haptics.confirm() // 轻快门反馈(无闪白:覆盖层还在,别打断)
+        shotPipeline.deliver(.init(image: cropped, pointSize: overlayRect.size, forcePNG: false),
+                             on: cap.context.screenFrame)
     }
 
     /// 迷你工具条「复制」(图片选区):按坐标真源裁剪并写入剪贴板。
