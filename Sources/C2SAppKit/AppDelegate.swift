@@ -21,6 +21,27 @@ public final class AppDelegate: NSObject, NSApplicationDelegate, ObservableObjec
         }
     }
 
+    /// F20 URL scheme(spec S1;Raycast/Stream Deck/BTT 绑定用):
+    /// `c2s://capture` = 圈选;`c2s://shot` = 截图覆盖层;`c2s://shot?mode=full` = 直拍全屏。
+    public func application(_ application: NSApplication, open urls: [URL]) {
+        for url in urls where url.scheme?.lowercased() == "c2s" {
+            switch url.host?.lowercased() {
+            case "capture":
+                coordinator.captureNow()
+            case "shot":
+                let mode = URLComponents(url: url, resolvingAgainstBaseURL: false)?
+                    .queryItems?.first(where: { $0.name == "mode" })?.value
+                if mode == "full" {
+                    coordinator.shotFullScreenNow()
+                } else {
+                    coordinator.shotNow()
+                }
+            default:
+                break
+            }
+        }
+    }
+
     /// 用户在 Finder/Launchpad 再次打开 app(菜单栏图标不显眼时的自救路径):
     /// 没有可见窗口就弹欢迎引导或设置,而不是看起来毫无反应。
     public func applicationShouldHandleReopen(_ sender: NSApplication,

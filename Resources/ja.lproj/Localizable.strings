@@ -36,6 +36,86 @@
 "menu.welcome_guide" = "ようこそガイド…";
 /* menu bar item */
 "menu.quit" = "Ringgo を終了";
+/* F20 menu bar item: enter screenshot overlay */
+"menu.shot_now" = "スクリーンショット";
+/* F20 menu bar item: capture current screen directly */
+"menu.shot_fullscreen" = "全画面を撮影";
+/* F20 alert body when Carbon registration fails for the shot hotkey */
+"hotkey.err.register_shot" = "スクリーンショットのホットキーを登録できませんでした(OSStatus %d)。他のアプリが使用中の可能性があります。設定でショートカットを変更してください。";
+/* F20 bottom hint pill in screenshot overlay */
+"shot.hint" = "ドラッグで範囲 · クリックでウインドウ · ⏎ で全画面 · Esc でキャンセル";
+/* F20 alert title when writing the file fails */
+"alert.shot_save_failed_title" = "スクリーンショットを保存できませんでした";
+/* F20 alert body; args = directory path, error */
+"alert.shot_save_failed_body" = "%1$@ への書き込みに失敗しました:%2$@\nスクリーンショットはクリップボードとトレイに残っています。";
+/* F20 rare failure when CGImageDestination cannot encode the shot */
+"error.shot_encode_failed" = "画像のエンコードに失敗しました。";
+/* F21 tray +n badge tooltip */
+"tray.expand" = "すべて表示";
+/* F21 tray expanded-list collapse button */
+"tray.collapse" = "たたむ";
+/* F21 tray card action tooltip (not yet saved) */
+"tray.save" = "保存";
+/* F21 tray card action tooltip (already saved) */
+"tray.reveal" = "Finder に表示";
+/* F21 tray card × tooltip */
+"tray.remove" = "取り除く(保存済みファイルは残ります)";
+/* settings tab (F20) */
+"settings.tab.screenshot" = "スクリーンショット";
+/* settings section header */
+"settings.shot.section.trigger" = "スクリーンショット";
+/* hotkey recorder label */
+"settings.shot.hotkey_label" = "スクリーンショットのホットキー";
+/* hotkey recorder helper text */
+"settings.shot.hotkey_caption" = "ドラッグ=範囲、クリック=ウインドウ、⏎=全画面。離した瞬間に撮影。";
+/* reset button tooltip */
+"settings.shot.hotkey_reset" = "⌘⇧X に戻す";
+/* validation when shot hotkey equals search hotkey */
+"settings.shot.hotkey_conflict" = "かこって検索のホットキーと同じです。別の組み合わせを選んでください。";
+/* validation when search hotkey equals shot hotkey */
+"settings.shot.hotkey_conflict_reverse" = "スクリーンショットのホットキーと同じです。別の組み合わせを選んでください。";
+/* settings section header */
+"settings.shot.section.output" = "出力";
+/* toggle */
+"settings.shot.copy_toggle" = "撮影後にクリップボードへコピー";
+/* toggle caption */
+"settings.shot.copy_caption" = "PNG と TIFF の両形式で書き込み、どのアプリにも貼り付けられます。";
+/* toggle */
+"settings.shot.save_toggle" = "自動的にディスクへ保存";
+/* button: reset save directory */
+"settings.shot.dir_reset" = "デフォルトに戻す";
+/* button: pick save directory */
+"settings.shot.dir_choose" = "選択…";
+/* caption when chosen dir is TCC-protected (spec §7) */
+"settings.shot.dir_tcc_caption" = "デスクトップ・書類・ダウンロードはシステム保護されており、初回書き込み時に許可を求められます。";
+/* text field label */
+"settings.shot.template_label" = "ファイル名テンプレート";
+/* template caption */
+"settings.shot.template_caption" = "{date} = 2026-07-16、{time} = 14.22.33。同名の場合は (2) を追加。";
+/* picker label */
+"settings.shot.format_label" = "画像形式";
+/* picker caption */
+"settings.shot.format_caption" = "ウインドウ撮影は透明な角丸を保つため常に PNG を使用します。";
+/* toggle */
+"settings.shot.shadow_toggle" = "ウインドウ撮影に影を付ける";
+/* toggle */
+"settings.shot.sound_toggle" = "シャッター音";
+/* settings section header (F21 Quick Access) */
+"settings.shot.section.tray" = "トレイ";
+/* picker label */
+"settings.shot.tray_corner_label" = "トレイの位置";
+/* picker option */
+"settings.shot.tray_bottom_left" = "左下";
+/* picker option */
+"settings.shot.tray_bottom_right" = "右下";
+/* toggle */
+"settings.shot.tray_dismiss_toggle" = "トレイを自動的にたたむ";
+/* picker label */
+"settings.shot.tray_dismiss_seconds" = "たたむまでの時間";
+/* picker option: seconds */
+"settings.shot.tray_seconds" = "%d 秒";
+/* caption */
+"settings.shot.tray_dismiss_caption" = "たたんでもトレイから消えるだけで、スクリーンショットはクリップボードとディスクに残ります。ホバー中はタイマーが一時停止します。";
 /* settings window title */
 "settings.window_title" = "Ringgo 設定";
 /* settings tab */

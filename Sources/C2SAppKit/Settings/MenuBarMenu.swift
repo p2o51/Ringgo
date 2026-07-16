@@ -17,6 +17,14 @@ public struct MenuBarMenu: View {
             // 菜单一打开就预热抓屏管线(features §F1 hover 预热)
             .onAppear { coordinator.prewarmCapture() }
 
+        // F20 截图模式(spec S1):同一冻结管线,松手/点击即快门
+        Button(L10n.t("menu.shot_now", "截图")) { coordinator.shotNow() }
+            .keyboardShortcut("x", modifiers: [.command, .shift])
+        // 菜单触发延迟 ~180ms 等菜单淡出,避免拍到菜单残影(spec S1)
+        Button(L10n.t("menu.shot_fullscreen", "截取全屏")) {
+            coordinator.shotFullScreenNow(afterMenuFade: true)
+        }
+
         Divider()
 
         if !coordinator.capture.hasScreenRecordingPermission {

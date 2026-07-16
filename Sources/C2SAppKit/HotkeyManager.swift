@@ -67,6 +67,8 @@ public final class HotkeyManager {
     private var isSuspended = false
 
     private var hotKeyRef: EventHotKeyRef?
+    /// F20 截图热键(id=2,默认 ⌘⇧X)。
+    private var shotHotKeyRef: EventHotKeyRef?
     private var eventHandlerRef: EventHandlerRef?
     /// global + local monitor 引用都必须保存,停用时逐个移除(原项目泄漏 monitor)。
     private var flagsMonitors: [Any] = []
@@ -97,6 +99,10 @@ public final class HotkeyManager {
             UnregisterEventHotKey(ref)
             hotKeyRef = nil
         }
+        if let ref = shotHotKeyRef {
+            UnregisterEventHotKey(ref)
+            shotHotKeyRef = nil
+        }
         for monitor in flagsMonitors {
             NSEvent.removeMonitor(monitor)
         }
@@ -124,6 +130,21 @@ public final class HotkeyManager {
             onError?(L10n.f("hotkey.err.register",
                             "热键注册失败(OSStatus %d),可能已被其他应用占用,请在设置中更换快捷键。", Int(status)))
         }
+
+        var shotRef: EventHotKeyRef?
+        let shotStatus = RegisterEventHotKey(config.shotKeyCode,
+                                             config.shotCarbonModifiers,
+                                             EventHotKeyID(signature: hotKeySignature, id: shotHotKeyIDNumber),
+                                             GetApplicationEventTarget(),
+                                             0,
+                                             &shotRef)
+        if shotStatus == noErr, let shotRef {
+            shotHotKeyRef = shotRef
+        } else {
+            shotHotKeyRef = nil
+            onError?(L10n.f("hotkey.err.register_shot",
+                            "截图热键注册失败(OSStatus %d),可能已被其他应用占用,请在设置中更换快捷键。", Int(shotStatus)))
+        }
     }
 
     private func installCarbonHandlerIfNeeded() {
@@ -142,15 +163,16 @@ public final class HotkeyManager {
         }
     }
 
-    fileprivate func hotkeyPressed() {
-        // ⌘⇧S 与蓄力共享 ⌘⇧ 前缀:热键先落地就取消蓄力计时,避免阈值到点后重复触发
+    fileprivate func hotkeyPressed(id: UInt32) {
+        // ⌘⇧S/⌘⇧X 与蓄力共享 ⌘⇧ 前缀:热键先落地就取消蓄力计时,避免阈值到点后
+        // 重复触发(spec S1:蓄力窗口内收到自家 ⌘⇧ 前缀热键 → 按热键意图直进对应模式)
         if chargeState == .charging {
             chargeWorkItem?.cancel()
             chargeWorkItem = nil
             chargeState = .fired // 本次按住已被热键消费,松开前不重入蓄力
             onEvent?(.chargeCancelled)
         }
-        onEvent?(.hotkey)
+        onEvent?(id == shotHotKeyIDNumber ? .shotHotkey : .hotkey)
     }
 
     // MARK: - flagsChanged 双路监听(蓄力 + 双击 Shift 共用)
@@ -266,6 +288,8 @@ private extension OSType {
 
 private let hotKeySignature = OSType(fourCharString: "C2SH")
 private let hotKeyIDNumber: UInt32 = 1
+/// F20 截图热键 id(同签名下按 id 分派)。
+private let shotHotKeyIDNumber: UInt32 = 2
 
 /// 不捕获任何上下文;校验签名后经 HotkeyManager.current 静态转发 + 主线程派发。
 private let hotKeyEventHandler: EventHandlerUPP = { _, event, _ in
@@ -280,13 +304,14 @@ private let hotKeyEventHandler: EventHandlerUPP = { _, event, _ in
                                 &hotKeyID)
     guard err == noErr,
           hotKeyID.signature == hotKeySignature,
-          hotKeyID.id == hotKeyIDNumber else {
+          hotKeyID.id == hotKeyIDNumber || hotKeyID.id == shotHotKeyIDNumber else {
         return OSStatus(eventNotHandledErr)
     }
+    let id = hotKeyID.id
     DispatchQueue.main.async {
         MainActor.assumeIsolated {
             guard let manager = HotkeyManager.current else { return }
-            manager.hotkeyPressed()
+            manager.hotkeyPressed(id: id)
         }
     }
     return noErr

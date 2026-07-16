@@ -1,5 +1,6 @@
 import AppKit
 import Combine
+import ScreenCaptureKit
 import C2SCore
 
 /// 全局状态机与模块接线(features §6 架构):
@@ -20,6 +21,14 @@ public final class AppCoordinator: ObservableObject {
     private let barcode = BarcodeService()
     private let search = SearchService()
     private let overlay = OverlayWindowController()
+    /// F21 托盘 + F20 产物管线(lazy:依赖 init 注入的 settings)。
+    private lazy var tray = QuickAccessTray(settings: settings)
+    private lazy var shotPipeline = ShotPipeline(settings: settings, tray: tray)
+
+    /// 当前覆盖层会话模式(触发点定死;spec §1 热键定意图)。
+    private var overlayMode: OverlayMode = .search
+    /// F20 会话级 SCWindow 快照(整窗实抓用;与抓屏并行现拉,spec S1)。
+    private var shotSCWindowsTask: Task<[UInt32: SCWindow], Never>?
 
     private var previousApp: NSRunningApplication?
     private var ocrTask: Task<Void, Never>?
@@ -74,6 +83,36 @@ public final class AppCoordinator: ObservableObject {
 
     /// 菜单栏「立即圈选」。
     public func captureNow() { handle(.menuBar) }
+
+    /// F20 菜单栏「截图」/ `c2s://shot`。
+    public func shotNow() { handle(.shotMenu) }
+
+    /// F20 直拍当前屏全屏(菜单栏「截取全屏」/ `c2s://shot?mode=full`,不进覆盖层)。
+    /// afterMenuFade:菜单触发延迟 ~180ms 等菜单淡出,避免拍到残影(spec S1)。
+    public func shotFullScreenNow(afterMenuFade: Bool = false) {
+        guard phase == .idle else { return }
+        phase = .capturing
+        Task { @MainActor [weak self] in
+            guard let self else { return }
+            if afterMenuFade {
+                try? await Task.sleep(nanoseconds: 180_000_000)
+            }
+            self.tray.hideForCapture() // 托盘不入镜(spec §10)
+            do {
+                let result = try await self.capture.captureScreenUnderMouse()
+                self.tray.restoreAfterCapture()
+                self.phase = .idle
+                self.shotPipeline.deliver(.init(image: result.image,
+                                                pointSize: result.context.pointSize,
+                                                forcePNG: false),
+                                          on: result.context.screenFrame)
+            } catch {
+                self.tray.restoreAfterCapture()
+                self.phase = .idle
+                self.showCaptureError(error)
+            }
+        }
+    }
 
     /// 菜单 hover / 打开时预热抓屏管线(features F1)。
     public func prewarmCapture() { capture.prewarm() }
@@ -135,11 +174,23 @@ public final class AppCoordinator: ObservableObject {
         case .hotkey, .menuBar, .doubleShift, .threeFingerDoubleTap:
             // 开关语义(v3.1):覆盖层已开 → 再按 = 关闭。
             // 轻点已不再退出(点空白=新框,对齐原版),鼠标党靠热键/Esc 离场。
+            // 跨模式互斥(spec S1):截图会话中按圈选热键 = 先结束再进圈选。
+            // immediate:淡出中的旧覆盖层会被拍进新冻结帧(抓屏不排除自家窗口)。
             if phase == .overlayActive {
-                dismissOverlay()
-                return
+                let wasShot = overlayMode == .shot
+                dismissOverlay(immediate: wasShot)
+                if !wasShot { return } // 同模式再按 = 关
             }
-            beginCapture()
+            beginCapture(mode: .search)
+        case .shotHotkey, .shotMenu:
+            if phase == .overlayActive {
+                let wasSearch = overlayMode == .search
+                dismissOverlay(immediate: wasSearch)
+                if !wasSearch { return } // 同模式再按 = 关
+            }
+            beginCapture(mode: .shot)
+        case .shotFullScreen:
+            shotFullScreenNow()
         case .chargeBegan:
             // 蓄力的 ~250ms 里并行预抓屏 → 松手即冻结、零空窗(features F1)。
             // 无屏幕录制权限时绝不投机:captureScreenUnderMouse 会触发 TCC 授权弹窗,
@@ -147,26 +198,39 @@ public final class AppCoordinator: ObservableObject {
             guard phase == .idle, speculativeCapture == nil,
                   capture.hasScreenRecordingPermission else { return }
             let capture = self.capture
+            let tray = self.tray
             speculativeCapture = Task {
                 // 缓一拍再拍:⌘⇧ 前缀快捷键大多在此窗口内结束并取消蓄力,
-                // 避免每按一次 ⌘⇧Z 就白拍一张全屏
+                // 避免每按一次 ⌘⇧Z 就白拍一张全屏。托盘也在这一拍之后才避让
+                // (spec §10)——放在 sleep 前会让每次 ⌘⇧Z 都看到托盘闪没闪回。
                 try await Task.sleep(nanoseconds: 120_000_000)
                 try Task.checkCancellation()
+                tray.hideForCapture()
                 return try await capture.captureScreenUnderMouse()
             }
         case .chargeFired:
             Haptics.fire() // 蓄力跨过阈值(触控板)
-            beginCapture()
+            beginCapture(mode: .search)
         case .chargeCancelled:
             speculativeCapture?.cancel()
             speculativeCapture = nil
+            // 只在空闲态恢复:截图会话期间(托盘刻意压住到会话结束)路过的
+            // ⌘⇧ 松开不能把托盘放回来挡住点击目标
+            if phase == .idle { tray.restoreAfterCapture() }
         }
     }
 
-    private func beginCapture() {
+    private func beginCapture(mode: OverlayMode = .search) {
         guard phase == .idle else { return } // capturing/overlay 时再触发一律忽略
         phase = .capturing
+        overlayMode = mode
         previousApp = NSWorkspace.shared.frontmostApplication
+        tray.hideForCapture() // 冻结帧不含托盘(spec §10:连拍第二张不入镜)
+        if mode == .shot {
+            // 会话级 SCWindow 快照与抓屏并行现拉(整窗实抓用;不读长寿命缓存,spec S1)
+            shotSCWindowsTask?.cancel()
+            shotSCWindowsTask = Task { await WindowSnapshotBuilder.freshSCWindows() }
+        }
         let pending = speculativeCapture
         speculativeCapture = nil
         Task { @MainActor [weak self] in
@@ -178,8 +242,13 @@ public final class AppCoordinator: ObservableObject {
                 } else {
                     result = try await self.capture.captureScreenUnderMouse()
                 }
+                // 帧已定格:圈选模式托盘立即回来(📸 投递可见,spec §10);
+                // 截图模式保持隐藏到会话结束——托盘层级高于覆盖层,留着会挡住
+                // 左下角的窗口点击目标,dismissOverlay 统一恢复。
+                if mode == .search { self.tray.restoreAfterCapture() }
                 self.presentOverlay(with: result)
             } catch {
+                self.tray.restoreAfterCapture()
                 self.phase = .idle
                 self.showCaptureError(error)
             }
@@ -189,6 +258,10 @@ public final class AppCoordinator: ObservableObject {
     // MARK: - 覆盖层
 
     private func presentOverlay(with result: CaptureResult) {
+        if overlayMode == .shot {
+            presentShotOverlay(with: result)
+            return
+        }
         phase = .overlayActive
         currentCapture = result
         lastTextQuery = nil
@@ -240,20 +313,109 @@ public final class AppCoordinator: ObservableObject {
         return await ocr.words(in: cap.image, context: cap.context, focusOn: overlayRect)
     }
 
-    private func dismissOverlay() {
+    // MARK: - F20 截图模式(spec §2:松手/点击即快门,覆盖层立刻退,不跑 OCR/条码)
+
+    private func presentShotOverlay(with result: CaptureResult) {
+        phase = .overlayActive
+        currentCapture = result
+
+        var cb = OverlayWindowController.ShotCallbacks()
+        cb.onRegion = { [weak self] rect in self?.shootRegion(rect) }
+        cb.onWindow = { [weak self] win in self?.shootWindow(win) }
+        cb.onFullScreen = { [weak self] in self?.shootFrozenFullScreen() }
+        cb.onDismiss = { [weak self] in self?.dismissOverlay() }
+        overlay.presentShot(capture: result, callbacks: cb, reduceEffects: settings.reduceEffects)
+
+        // 命中列表:CGWindowList 同步、便宜,z-order 有文档保证(spec §8)
+        overlay.updateShotWindows(WindowSnapshotBuilder.pickables(for: result.context))
+    }
+
+    /// 快门后的覆盖层退场:留 ~150ms 给闪白动画(减弱动态 = 立即)。
+    /// 产物在快门当刻已交付——闪白期间按 Esc/热键只会让这里的延迟退场空转,不丢图。
+    private func dismissOverlayAfterShutterFlash() {
+        let reduce = settings.reduceEffects
+            || NSWorkspace.shared.accessibilityDisplayShouldReduceMotion
+        if reduce {
+            dismissOverlay()
+            return
+        }
+        DispatchQueue.main.asyncAfter(deadline: .now() + .milliseconds(150)) { [weak self] in
+            MainActor.assumeIsolated { self?.dismissOverlay() }
+        }
+    }
+
+    /// 区域截图:从冻结帧裁剪(所见即所得,spec S2)。
+    private func shootRegion(_ rect: CGRect) {
+        guard let cap = currentCapture else { return }
+        let px = cap.context.pixelRect(fromOverlay: rect)
+        guard !px.isNull, px.width >= 2, px.height >= 2,
+              let cropped = cap.image.cropping(to: px) else {
+            dismissOverlay()
+            return
+        }
+        shotPipeline.deliver(.init(image: cropped, pointSize: rect.size, forcePNG: false),
+                             on: cap.context.screenFrame)
+        dismissOverlayAfterShutterFlash()
+    }
+
+    /// ⏎ 全屏:整张冻结帧。
+    private func shootFrozenFullScreen() {
+        guard let cap = currentCapture else { return }
+        shotPipeline.deliver(.init(image: cap.image,
+                                   pointSize: cap.context.pointSize,
+                                   forcePNG: false),
+                             on: cap.context.screenFrame)
+        dismissOverlayAfterShutterFlash()
+    }
+
+    /// 整窗截图:快门时刻单窗实抓(透明圆角+合成阴影;内容以快门时刻为准,
+    /// 接受与冻结预览的时差,spec S2)。窗口已消失/实抓失败 → 回退按窗框裁冻结帧。
+    private func shootWindow(_ win: PickableWindow) {
+        guard let cap = currentCapture else { return }
+        let context = cap.context
+        let frozen = cap.image
+        let overlayFrame = win.frame
+        let includeShadow = settings.shotWindowShadow
+        let scTask = shotSCWindowsTask
+        Task { @MainActor [weak self] in
+            guard let self else { return }
+            if let scWindow = (await scTask?.value)?[win.windowID],
+               let output = try? await WindowCaptureService.capture(window: scWindow,
+                                                                    includeShadow: includeShadow) {
+                self.shotPipeline.deliver(.init(image: output.image,
+                                                pointSize: output.pointSize,
+                                                forcePNG: true), // 透明 alpha,强制 PNG(spec §6)
+                                          on: context.screenFrame)
+                return
+            }
+            // 回退:无透明、无阴影(spec S2 静默降级)
+            let px = context.pixelRect(fromOverlay: overlayFrame)
+            guard !px.isNull, let cropped = frozen.cropping(to: px) else { return }
+            self.shotPipeline.deliver(.init(image: cropped,
+                                            pointSize: overlayFrame.size,
+                                            forcePNG: false),
+                                      on: context.screenFrame)
+        }
+        dismissOverlayAfterShutterFlash()
+    }
+
+    private func dismissOverlay(immediate: Bool = false) {
         guard phase == .overlayActive else { return }
         ocrTask?.cancel()
         ocrTask = nil
         barcodeTask?.cancel()
         barcodeTask = nil
+        // 只放引用不 cancel:shootWindow 已捕获本地引用,取消会把实抓打断成回退路径
+        shotSCWindowsTask = nil
         currentCapture = nil
         lastImageSearchRect = nil
         lastLensThumbnail = nil
         pendingLensPrompt = nil
         promptMode = nil
         lensSessionURL = nil
-        overlay.dismiss()
+        overlay.dismiss(immediate: immediate)
         phase = .idle
+        tray.restoreAfterCapture() // 幂等;shot 会话期间被压住的托盘在此恢复
         previousApp?.activate()
         previousApp = nil
     }

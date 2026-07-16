@@ -6,10 +6,20 @@ import SwiftUI
 ///
 /// 录制期间会暂停 Carbon 热键与蓄力监听，否则按下当前组合时事件会先被全局
 /// 热键消费，反而唤起覆盖层，设置窗口收不到这次 keyDown。
+/// F20 起参数化:圈选热键与截图热键复用同一录制器(binding + 默认值 + 撞车检查)。
 @MainActor
 struct HotkeyRecorderRow: View {
-    @EnvironmentObject private var settings: SettingsStore
     @EnvironmentObject private var coordinator: AppCoordinator
+
+    let label: String
+    let helperIdle: String
+    @Binding var keyCode: UInt32
+    @Binding var modifiers: UInt32
+    let defaultKeyCode: UInt32
+    let defaultModifiers: UInt32
+    let resetHelp: String
+    /// 与另一枚热键撞车检查(返回提示 = 拒绝该组合)。
+    var conflictCheck: (UInt32, UInt32) -> String? = { _, _ in nil }
 
     @State private var isRecording = false
     @State private var modifierPreview: NSEvent.ModifierFlags = []
@@ -17,12 +27,9 @@ struct HotkeyRecorderRow: View {
     @State private var validationMessage: String?
     @State private var validationTask: Task<Void, Never>?
 
-    private let defaultKeyCode: UInt32 = 1
-    private let defaultModifiers: UInt32 = 768
-
     var body: some View {
         VStack(alignment: .leading, spacing: 4) {
-            LabeledContent(L10n.t("hotkey.label", "圈选热键")) {
+            LabeledContent(label) {
                 HStack(spacing: 8) {
                     Button(action: toggleRecording) {
                         recorderWell
@@ -30,24 +37,24 @@ struct HotkeyRecorderRow: View {
                     .buttonStyle(.plain)
                     .help(isRecording ? L10n.t("hotkey.help_recording", "按 Esc 取消录制")
                                       : L10n.t("hotkey.help_idle", "点按以更改快捷键"))
-                    .accessibilityLabel(L10n.t("hotkey.label", "圈选热键"))
+                    .accessibilityLabel(label)
                     .accessibilityValue(isRecording
                                         ? L10n.t("hotkey.recording", "正在录制")
                                         : HotkeySymbols.spokenDescription(
-                                            keyCode: settings.hotkeyKeyCode,
-                                            carbonModifiers: settings.hotkeyModifiers))
+                                            keyCode: keyCode,
+                                            carbonModifiers: modifiers))
                     .accessibilityHint(isRecording ? L10n.t("hotkey.hint_recording", "按下新的组合键")
                                                    : L10n.t("hotkey.hint_idle", "按下以录制新快捷键"))
 
                     if !isDefault {
                         Button {
-                            settings.hotkeyKeyCode = defaultKeyCode
-                            settings.hotkeyModifiers = defaultModifiers
+                            keyCode = defaultKeyCode
+                            modifiers = defaultModifiers
                         } label: {
                             Image(systemName: "arrow.counterclockwise")
                         }
                         .buttonStyle(.borderless)
-                        .help(L10n.t("hotkey.reset_help", "还原为 ⌘⇧S"))
+                        .help(resetHelp)
                         .transition(.opacity)
                     }
                 }
@@ -80,8 +87,8 @@ struct HotkeyRecorderRow: View {
                 }
             } else {
                 HotkeyKeycaps(
-                    parts: HotkeySymbols.parts(keyCode: settings.hotkeyKeyCode,
-                                               carbonModifiers: settings.hotkeyModifiers)
+                    parts: HotkeySymbols.parts(keyCode: keyCode,
+                                               carbonModifiers: modifiers)
                 )
                 .frame(minWidth: 112, minHeight: 26)
             }
@@ -111,12 +118,11 @@ struct HotkeyRecorderRow: View {
     private var helperText: String {
         if let validationMessage { return validationMessage }
         if isRecording { return L10n.t("hotkey.helper_recording", "按下新的组合键；Esc 取消。") }
-        return L10n.t("hotkey.helper_idle", "在任何应用中按下即可开始圈选。")
+        return helperIdle
     }
 
     private var isDefault: Bool {
-        settings.hotkeyKeyCode == defaultKeyCode
-            && settings.hotkeyModifiers == defaultModifiers
+        keyCode == defaultKeyCode && modifiers == defaultModifiers
     }
 
     private func toggleRecording() {
@@ -171,9 +177,14 @@ struct HotkeyRecorderRow: View {
             showValidation(L10n.t("hotkey.need_modifier", "全局热键需包含至少一个修饰键（⌘⌥⌃⇧）。"))
             return
         }
+        if let conflict = conflictCheck(UInt32(keyCode), carbon) {
+            NSSound.beep()
+            showValidation(conflict)
+            return
+        }
 
-        settings.hotkeyKeyCode = UInt32(keyCode)
-        settings.hotkeyModifiers = carbon
+        self.keyCode = UInt32(keyCode)
+        self.modifiers = carbon
         stopRecording()
     }
 

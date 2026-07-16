@@ -36,6 +36,86 @@
 "menu.welcome_guide" = "Welcome Guide…";
 /* menu bar item */
 "menu.quit" = "Quit Ringgo";
+/* F20 menu bar item: enter screenshot overlay */
+"menu.shot_now" = "Screenshot";
+/* F20 menu bar item: capture current screen directly */
+"menu.shot_fullscreen" = "Capture Full Screen";
+/* F20 alert body when Carbon registration fails for the shot hotkey */
+"hotkey.err.register_shot" = "Failed to register the screenshot hotkey (OSStatus %d). It may be taken by another app — pick a different shortcut in Settings.";
+/* F20 bottom hint pill in screenshot overlay */
+"shot.hint" = "Drag for area · Click for window · ⏎ full screen · Esc to cancel";
+/* F20 alert title when writing the file fails */
+"alert.shot_save_failed_title" = "Couldn't Save Screenshot";
+/* F20 alert body; args = directory path, error */
+"alert.shot_save_failed_body" = "Couldn't write to %1$@: %2$@\nThe screenshot is still on the clipboard and in the tray — nothing is lost.";
+/* F20 rare failure when CGImageDestination cannot encode the shot */
+"error.shot_encode_failed" = "Image encoding failed.";
+/* F21 tray +n badge tooltip */
+"tray.expand" = "Show All";
+/* F21 tray expanded-list collapse button */
+"tray.collapse" = "Collapse";
+/* F21 tray card action tooltip (not yet saved) */
+"tray.save" = "Save";
+/* F21 tray card action tooltip (already saved) */
+"tray.reveal" = "Reveal in Finder";
+/* F21 tray card × tooltip */
+"tray.remove" = "Remove (keeps saved file)";
+/* settings tab (F20) */
+"settings.tab.screenshot" = "Screenshot";
+/* settings section header */
+"settings.shot.section.trigger" = "Screenshot";
+/* hotkey recorder label */
+"settings.shot.hotkey_label" = "Screenshot Hotkey";
+/* hotkey recorder helper text */
+"settings.shot.hotkey_caption" = "Drag = area, click = window, ⏎ = full screen. Release to capture.";
+/* reset button tooltip */
+"settings.shot.hotkey_reset" = "Reset to ⌘⇧X";
+/* validation when shot hotkey equals search hotkey */
+"settings.shot.hotkey_conflict" = "Same as the Circle to Search hotkey — pick a different combo.";
+/* validation when search hotkey equals shot hotkey */
+"settings.shot.hotkey_conflict_reverse" = "Same as the screenshot hotkey — pick a different combo.";
+/* settings section header */
+"settings.shot.section.output" = "Output";
+/* toggle */
+"settings.shot.copy_toggle" = "Copy to clipboard after capture";
+/* toggle caption */
+"settings.shot.copy_caption" = "Writes both PNG and TIFF so pasting works everywhere.";
+/* toggle */
+"settings.shot.save_toggle" = "Save to disk automatically";
+/* button: reset save directory */
+"settings.shot.dir_reset" = "Use Default";
+/* button: pick save directory */
+"settings.shot.dir_choose" = "Choose…";
+/* caption when chosen dir is TCC-protected (spec §7) */
+"settings.shot.dir_tcc_caption" = "Desktop, Documents and Downloads are system-protected; the first write triggers a permission prompt.";
+/* text field label */
+"settings.shot.template_label" = "Filename Template";
+/* template caption */
+"settings.shot.template_caption" = "{date} = 2026-07-16, {time} = 14.22.33; duplicates get (2) appended.";
+/* picker label */
+"settings.shot.format_label" = "Image Format";
+/* picker caption */
+"settings.shot.format_caption" = "Window captures always use PNG to keep transparent rounded corners.";
+/* toggle */
+"settings.shot.shadow_toggle" = "Window captures include shadow";
+/* toggle */
+"settings.shot.sound_toggle" = "Shutter sound";
+/* settings section header (F21 Quick Access) */
+"settings.shot.section.tray" = "Tray";
+/* picker label */
+"settings.shot.tray_corner_label" = "Tray Position";
+/* picker option */
+"settings.shot.tray_bottom_left" = "Bottom Left";
+/* picker option */
+"settings.shot.tray_bottom_right" = "Bottom Right";
+/* toggle */
+"settings.shot.tray_dismiss_toggle" = "Auto-dismiss tray";
+/* picker label */
+"settings.shot.tray_dismiss_seconds" = "Dismiss After";
+/* picker option: seconds */
+"settings.shot.tray_seconds" = "%d s";
+/* caption */
+"settings.shot.tray_dismiss_caption" = "Dismissing only hides the tray item; the screenshot stays on the clipboard and disk. Hovering pauses the timer.";
 /* settings window title */
 "settings.window_title" = "Ringgo Settings";
 /* settings tab */

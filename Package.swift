@@ -27,6 +27,7 @@ let package = Package(
             resources: [
                 .copy("Shaders/default.metallib"),
                 .copy("Resources/MenuBarIcon.pdf"),
+                .copy("Resources/shutter.aiff"),
             ],
             swiftSettings: [.swiftLanguageMode(.v5)]
         ),

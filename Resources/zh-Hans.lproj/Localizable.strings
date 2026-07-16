@@ -36,6 +36,86 @@
 "menu.welcome_guide" = "欢迎引导…";
 /* menu bar item */
 "menu.quit" = "退出 Ringgo";
+/* F20 menu bar item: enter screenshot overlay */
+"menu.shot_now" = "截图";
+/* F20 menu bar item: capture current screen directly */
+"menu.shot_fullscreen" = "截取全屏";
+/* F20 alert body when Carbon registration fails for the shot hotkey */
+"hotkey.err.register_shot" = "截图热键注册失败(OSStatus %d),可能已被其他应用占用,请在设置中更换快捷键。";
+/* F20 bottom hint pill in screenshot overlay */
+"shot.hint" = "拖拽截取区域 · 点击截取窗口 · ⏎ 全屏 · Esc 取消";
+/* F20 alert title when writing the file fails */
+"alert.shot_save_failed_title" = "截图未能保存到磁盘";
+/* F20 alert body; args = directory path, error */
+"alert.shot_save_failed_body" = "写入 %1$@ 失败:%2$@\n截图仍在剪贴板与托盘里,不会丢失。";
+/* F20 rare failure when CGImageDestination cannot encode the shot */
+"error.shot_encode_failed" = "图像编码失败。";
+/* F21 tray +n badge tooltip */
+"tray.expand" = "展开全部";
+/* F21 tray expanded-list collapse button */
+"tray.collapse" = "收起";
+/* F21 tray card action tooltip (not yet saved) */
+"tray.save" = "保存";
+/* F21 tray card action tooltip (already saved) */
+"tray.reveal" = "在 Finder 中显示";
+/* F21 tray card × tooltip */
+"tray.remove" = "移除(不删除已保存文件)";
+/* settings tab (F20) */
+"settings.tab.screenshot" = "截图";
+/* settings section header */
+"settings.shot.section.trigger" = "截图";
+/* hotkey recorder label */
+"settings.shot.hotkey_label" = "截图热键";
+/* hotkey recorder helper text */
+"settings.shot.hotkey_caption" = "拖拽 = 区域、点击 = 整窗、⏎ = 全屏,松手即拍。";
+/* reset button tooltip */
+"settings.shot.hotkey_reset" = "还原为 ⌘⇧X";
+/* validation when shot hotkey equals search hotkey */
+"settings.shot.hotkey_conflict" = "与圈选热键相同,请换一个组合。";
+/* validation when search hotkey equals shot hotkey */
+"settings.shot.hotkey_conflict_reverse" = "与截图热键相同,请换一个组合。";
+/* settings section header */
+"settings.shot.section.output" = "产物";
+/* toggle */
+"settings.shot.copy_toggle" = "拍后复制到剪贴板";
+/* toggle caption */
+"settings.shot.copy_caption" = "以 PNG + TIFF 双格式写入,兼容各类应用粘贴。";
+/* toggle */
+"settings.shot.save_toggle" = "自动保存到磁盘";
+/* button: reset save directory */
+"settings.shot.dir_reset" = "还原默认";
+/* button: pick save directory */
+"settings.shot.dir_choose" = "选择…";
+/* caption when chosen dir is TCC-protected (spec §7) */
+"settings.shot.dir_tcc_caption" = "桌面/文稿/下载受系统保护,首次写入会弹出授权窗口。";
+/* text field label */
+"settings.shot.template_label" = "文件名模板";
+/* template caption */
+"settings.shot.template_caption" = "{date} = 2026-07-16,{time} = 14.22.33;同名自动追加 (2)。";
+/* picker label */
+"settings.shot.format_label" = "图片格式";
+/* picker caption */
+"settings.shot.format_caption" = "窗口截图始终使用 PNG 以保留透明圆角。";
+/* toggle */
+"settings.shot.shadow_toggle" = "窗口截图带阴影";
+/* toggle */
+"settings.shot.sound_toggle" = "快门声";
+/* settings section header (F21 Quick Access) */
+"settings.shot.section.tray" = "托盘";
+/* picker label */
+"settings.shot.tray_corner_label" = "托盘位置";
+/* picker option */
+"settings.shot.tray_bottom_left" = "左下角";
+/* picker option */
+"settings.shot.tray_bottom_right" = "右下角";
+/* toggle */
+"settings.shot.tray_dismiss_toggle" = "自动收起托盘";
+/* picker label */
+"settings.shot.tray_dismiss_seconds" = "收起延时";
+/* picker option: seconds */
+"settings.shot.tray_seconds" = "%d 秒";
+/* caption */
+"settings.shot.tray_dismiss_caption" = "收起只是托盘项消失;截图仍在剪贴板与磁盘里。悬停托盘会暂停计时。";
 /* settings window title */
 "settings.window_title" = "Ringgo 设置";
 /* settings tab */

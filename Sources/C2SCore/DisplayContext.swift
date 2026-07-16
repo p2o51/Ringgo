@@ -63,4 +63,36 @@ public struct DisplayContext: Sendable, Equatable {
     public func overlayPoint(fromGlobal p: CGPoint) -> CGPoint {
         CGPoint(x: p.x - screenFrame.minX, y: screenFrame.maxY - p.y)
     }
+
+    // MARK: - CG 全局坐标(F20/F24 窗口命中)
+
+    /// CG 全局(主屏左上原点,y 向下;SCWindow.frame / CGWindowListCopyWindowInfo 用)
+    /// → 覆盖层本地(左上原点)。唯一换算点——副屏在主屏上方/左侧(负坐标)时,
+    /// 任何绕过这里的手写换算都会静默错位(spec §8)。
+    ///
+    /// - Parameter mainDisplayHeight: 主屏点高度(CG 与 AppKit 全局系互翻的基准轴)。
+    public func overlayRect(fromCGGlobal r: CGRect, mainDisplayHeight: CGFloat) -> CGRect {
+        // CG 全局 → AppKit 全局(翻 Y,基准 = 主屏高)
+        let appKit = CGRect(x: r.minX,
+                            y: mainDisplayHeight - r.maxY,
+                            width: r.width,
+                            height: r.height)
+        // AppKit 全局 → 覆盖层本地(左上原点)
+        return CGRect(x: appKit.minX - screenFrame.minX,
+                      y: screenFrame.maxY - appKit.maxY,
+                      width: appKit.width,
+                      height: appKit.height)
+    }
+
+    /// 覆盖层本地(左上原点)→ CG 全局(主屏左上原点,y 向下)。`overlayRect(fromCGGlobal:)` 的逆。
+    public func cgGlobalRect(fromOverlay r: CGRect, mainDisplayHeight: CGFloat) -> CGRect {
+        let appKit = CGRect(x: r.minX + screenFrame.minX,
+                            y: screenFrame.maxY - r.maxY,
+                            width: r.width,
+                            height: r.height)
+        return CGRect(x: appKit.minX,
+                      y: mainDisplayHeight - appKit.maxY,
+                      width: appKit.width,
+                      height: appKit.height)
+    }
 }

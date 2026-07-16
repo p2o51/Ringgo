@@ -12,6 +12,19 @@ public enum TriggerEvent: Sendable, Equatable {
     case chargeBegan
     case chargeFired
     case chargeCancelled
+    /// F20 截图模式:全局热键(默认 ⌘⇧X)。
+    case shotHotkey
+    /// F20 截图模式:菜单栏「截图」。
+    case shotMenu
+    /// F20 截图模式:直拍当前屏全屏(菜单栏「截取全屏」/ c2s://shot?mode=full,不进覆盖层)。
+    case shotFullScreen
+}
+
+/// 覆盖层模式(spec §1/§8):热键定意图,共享底座、平行模式。
+/// search = 圈选即搜(选区常驻);shot = 松手/点击即快门,覆盖层立刻退场。
+public enum OverlayMode: Sendable, Equatable {
+    case search
+    case shot
 }
 
 /// 触发配置(SettingsStore → HotkeyManager)。
@@ -24,17 +37,25 @@ public struct TriggerConfig: Equatable, Sendable {
     public var chargeThresholdMs: Int
     /// 双击 Shift:默认关(需要辅助功能权限,开启才申请)。
     public var doubleShiftEnabled: Bool
+    /// F20 截图热键(默认 7 = kVK_ANSI_X)。
+    public var shotKeyCode: UInt32
+    /// F20 截图热键修饰键(默认 ⌘⇧,避开系统占用的 ⌘⇧3/4/5)。
+    public var shotCarbonModifiers: UInt32
 
     public init(keyCode: UInt32 = 1,
                 carbonModifiers: UInt32 = 768,
                 chargeEnabled: Bool = false,
                 chargeThresholdMs: Int = 250,
-                doubleShiftEnabled: Bool = false) {
+                doubleShiftEnabled: Bool = false,
+                shotKeyCode: UInt32 = 7,
+                shotCarbonModifiers: UInt32 = 768) {
         self.keyCode = keyCode
         self.carbonModifiers = carbonModifiers
         self.chargeEnabled = chargeEnabled
         self.chargeThresholdMs = chargeThresholdMs
         self.doubleShiftEnabled = doubleShiftEnabled
+        self.shotKeyCode = shotKeyCode
+        self.shotCarbonModifiers = shotCarbonModifiers
     }
 }
 

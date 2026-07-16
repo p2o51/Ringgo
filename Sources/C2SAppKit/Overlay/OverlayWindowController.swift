@@ -66,17 +66,32 @@ public final class OverlayWindowController {
         public init() {}
     }
 
+    /// F20 截图模式回调(spec §8:动作由模式注入,与圈选 Callbacks 平行)。
+    public struct ShotCallbacks {
+        /// 区域松手即拍(覆盖层点坐标)。
+        public var onRegion: (CGRect) -> Void = { _ in }
+        /// 点击整窗即拍。
+        public var onWindow: (PickableWindow) -> Void = { _ in }
+        /// ⏎ 当前屏全屏。
+        public var onFullScreen: () -> Void = {}
+        public var onDismiss: () -> Void = {}
+        public init() {}
+    }
+
     public init() {
         self.sheetModel = ResultSheetModel()
         self.viewModel = SelectionViewModel()
     }
 
     public private(set) var isPresenting = false
+    /// 当前会话模式(present/presentShot 设定;键盘分发按它走)。
+    public private(set) var mode: OverlayMode = .search
 
     private var window: OverlayWindow?
-    private var hostingView: OverlayHostingView<OverlayRootView>?
+    private var hostingView: OverlayHostingView<AnyView>?
     private let sheetModel: ResultSheetModel
     private let viewModel: SelectionViewModel
+    private let shotViewModel = ShotSelectionViewModel()
     private var keyMonitor: Any?
     private var callbacks = Callbacks()
     private var context: DisplayContext?
@@ -100,6 +115,7 @@ public final class OverlayWindowController {
                         reduceEffects: Bool,
                         translationTargetCode: String = "",
                         onPickTranslationTarget: @escaping (String) -> Void = { _ in }) {
+        self.mode = .search
         self.callbacks = callbacks
         self.context = capture.context
         self.reduceEffects = reduceEffects
@@ -149,6 +165,43 @@ public final class OverlayWindowController {
                                    onTranslateImage: callbacks.onTranslateImage,
                                    onVisualizeImage: callbacks.onVisualizeImage,
                                    onSubmitImageEdit: callbacks.onSubmitImageEdit)
+        mountAndShow(root: AnyView(root), screenFrame: capture.context.screenFrame)
+    }
+
+    /// F20 截图模式覆盖层(spec §8 平行模式):精简根视图,跳过 sheet/工具条/翻译装配;
+    /// Esc 复用同一 onDismiss 通道,⏎ 由键盘监听按 mode 分发。
+    public func presentShot(capture: CaptureResult,
+                            callbacks: ShotCallbacks,
+                            reduceEffects: Bool) {
+        self.mode = .shot
+        self.context = capture.context
+        self.reduceEffects = reduceEffects
+        // Esc/热键退出走既有 callbacks.onDismiss 通道(monitor 只认它)
+        var searchCB = Callbacks()
+        searchCB.onDismiss = callbacks.onDismiss
+        self.callbacks = searchCB
+
+        shotViewModel.reset()
+        shotViewModel.prepare(viewport: capture.context.pointSize)
+        shotViewModel.reduceMotion = shouldReduceMotion
+        shotViewModel.onRegion = callbacks.onRegion
+        shotViewModel.onWindow = callbacks.onWindow
+        shotViewModel.onFullScreen = callbacks.onFullScreen
+
+        let root = ShotOverlayRootView(capture: capture,
+                                       viewModel: shotViewModel,
+                                       reduceEffects: reduceEffects)
+        mountAndShow(root: AnyView(root), screenFrame: capture.context.screenFrame)
+    }
+
+    /// F20 会话级窗口快照到达(主线程;shot 模式的窗口高亮/命中数据源)。
+    public func updateShotWindows(_ windows: [PickableWindow]) {
+        guard isPresenting, mode == .shot else { return }
+        shotViewModel.windows = windows
+    }
+
+    /// 两模式共用的窗口装配与淡入(覆盖层与抓屏同屏,坐标 P0)。
+    private func mountAndShow(root: AnyView, screenFrame: CGRect) {
         let window = ensureWindow()
         if let hostingView {
             hostingView.rootView = root
@@ -157,8 +210,7 @@ public final class OverlayWindowController {
             hostingView = hv
             window.contentView = hv
         }
-        // 覆盖层与抓屏同屏(坐标 P0)
-        window.setFrame(capture.context.screenFrame, display: true)
+        window.setFrame(screenFrame, display: true)
 
         window.alphaValue = 0
         NSApp.activate(ignoringOtherApps: true)
@@ -210,7 +262,9 @@ public final class OverlayWindowController {
 
 
     /// 关闭覆盖层。幂等;内部不得再回调 onDismiss(防递归)。
-    public func dismiss() {
+    /// immediate:跳过淡出动画立即收窗——跨模式切换要在旧覆盖层还在屏上时
+    /// 避免它被拍进新冻结帧(spec S1;抓屏不排除自家窗口)。
+    public func dismiss(immediate: Bool = false) {
         guard isPresenting else { return }
         isPresenting = false
         if let keyMonitor {
@@ -222,13 +276,14 @@ public final class OverlayWindowController {
             tc.dismiss()
         }
         viewModel.reset()
+        shotViewModel.reset()
         sheetModel.content = .hidden
         sheetModel.query = nil
         sheetModel.queryImage = nil
         context = nil
 
         guard let window else { return }
-        if shouldReduceMotion {
+        if immediate || shouldReduceMotion {
             window.alphaValue = 0
             window.orderOut(nil)
             releaseContentAfterDismiss()
@@ -299,6 +354,14 @@ public final class OverlayWindowController {
                 if event.keyCode == 53 { // ESC
                     self.callbacks.onDismiss()
                     consume = true
+                    return
+                }
+                // F20 截图模式:⏎(Return/小键盘 Enter)= 当前屏全屏快门;⌘C 不适用
+                if self.mode == .shot {
+                    if event.keyCode == 36 || event.keyCode == 76 {
+                        self.shotViewModel.fireFullScreen()
+                        consume = true
+                    }
                     return
                 }
                 if event.modifierFlags.intersection(.deviceIndependentFlagsMask) == .command,

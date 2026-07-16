@@ -20,12 +20,156 @@ public struct SettingsView: View {
                 .tabItem { Label(L10n.t("settings.tab.appearance", "外观"), systemImage: "circle.lefthalf.filled") }
             SearchTab()
                 .tabItem { Label(L10n.t("settings.tab.search", "搜索"), systemImage: "magnifyingglass") }
+            ScreenshotTab()
+                .tabItem { Label(L10n.t("settings.tab.screenshot", "截图"), systemImage: "camera.viewfinder") }
             PermissionsTab()
                 .tabItem { Label(L10n.t("settings.tab.permissions", "权限"), systemImage: "lock.shield") }
             AboutTab()
                 .tabItem { Label(L10n.t("settings.tab.about", "关于"), systemImage: "info.circle") }
         }
         .frame(width: 560, height: 430)
+    }
+}
+
+// MARK: - 截图(F20/F21,spec §6)
+
+@MainActor
+private struct ScreenshotTab: View {
+    @EnvironmentObject private var settings: SettingsStore
+
+    var body: some View {
+        Form {
+            Section(L10n.t("settings.shot.section.trigger", "截图")) {
+                HotkeyRecorderRow(
+                    label: L10n.t("settings.shot.hotkey_label", "截图热键"),
+                    helperIdle: L10n.t("settings.shot.hotkey_caption",
+                                       "拖拽 = 区域、点击 = 整窗、⏎ = 全屏,松手即拍。"),
+                    keyCode: $settings.shotHotkeyKeyCode,
+                    modifiers: $settings.shotHotkeyModifiers,
+                    defaultKeyCode: 7,
+                    defaultModifiers: 768,
+                    resetHelp: L10n.t("settings.shot.hotkey_reset", "还原为 ⌘⇧X"),
+                    conflictCheck: { keyCode, modifiers in
+                        (keyCode == settings.hotkeyKeyCode && modifiers == settings.hotkeyModifiers)
+                            ? L10n.t("settings.shot.hotkey_conflict", "与圈选热键相同,请换一个组合。")
+                            : nil
+                    })
+            }
+
+            Section(L10n.t("settings.shot.section.output", "产物")) {
+                VStack(alignment: .leading, spacing: 3) {
+                    Toggle(L10n.t("settings.shot.copy_toggle", "拍后复制到剪贴板"),
+                           isOn: $settings.shotCopyToClipboard)
+                    Text(L10n.t("settings.shot.copy_caption", "以 PNG + TIFF 双格式写入,兼容各类应用粘贴。"))
+                        .settingsCaption()
+                }
+
+                VStack(alignment: .leading, spacing: 5) {
+                    Toggle(L10n.t("settings.shot.save_toggle", "自动保存到磁盘"),
+                           isOn: $settings.shotAutoSave)
+                    HStack(spacing: 8) {
+                        Text(displayDirectory)
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                            .lineLimit(1)
+                            .truncationMode(.middle)
+                        Spacer()
+                        if !settings.shotSaveDirectory.isEmpty {
+                            Button(L10n.t("settings.shot.dir_reset", "还原默认")) {
+                                settings.shotSaveDirectory = ""
+                            }
+                            .controlSize(.small)
+                        }
+                        Button(L10n.t("settings.shot.dir_choose", "选择…")) { chooseDirectory() }
+                            .controlSize(.small)
+                    }
+                    .disabled(!settings.shotAutoSave)
+                    if isTCCProtectedDirectory {
+                        Text(L10n.t("settings.shot.dir_tcc_caption",
+                                    "桌面/文稿/下载受系统保护,首次写入会弹出授权窗口。"))
+                            .settingsCaption()
+                    }
+                }
+
+                LabeledContent(L10n.t("settings.shot.template_label", "文件名模板")) {
+                    TextField("", text: $settings.shotFilenameTemplate)
+                        .textFieldStyle(.roundedBorder)
+                        .frame(maxWidth: 240)
+                        .disabled(!settings.shotAutoSave)
+                }
+                Text(L10n.t("settings.shot.template_caption",
+                            "{date} = 2026-07-16,{time} = 14.22.33;同名自动追加 (2)。"))
+                    .settingsCaption()
+
+                VStack(alignment: .leading, spacing: 3) {
+                    Picker(L10n.t("settings.shot.format_label", "图片格式"),
+                           selection: $settings.shotImageFormat) {
+                        ForEach(SettingsStore.ShotFormat.allCases) { format in
+                            Text(format.label).tag(format)
+                        }
+                    }
+                    .pickerStyle(.segmented)
+                    .frame(maxWidth: 220)
+                    Text(L10n.t("settings.shot.format_caption", "窗口截图始终使用 PNG 以保留透明圆角。"))
+                        .settingsCaption()
+                }
+
+                Toggle(L10n.t("settings.shot.shadow_toggle", "窗口截图带阴影"),
+                       isOn: $settings.shotWindowShadow)
+                Toggle(L10n.t("settings.shot.sound_toggle", "快门声"),
+                       isOn: $settings.shotShutterSound)
+            }
+
+            Section(L10n.t("settings.shot.section.tray", "托盘")) {
+                Picker(L10n.t("settings.shot.tray_corner_label", "托盘位置"),
+                       selection: $settings.shotTrayCorner) {
+                    ForEach(SettingsStore.ShotTrayCorner.allCases) { corner in
+                        Text(corner.label).tag(corner)
+                    }
+                }
+                VStack(alignment: .leading, spacing: 5) {
+                    Toggle(L10n.t("settings.shot.tray_dismiss_toggle", "自动收起托盘"),
+                           isOn: $settings.shotTrayAutoDismiss)
+                    if settings.shotTrayAutoDismiss {
+                        Picker(L10n.t("settings.shot.tray_dismiss_seconds", "收起延时"),
+                               selection: $settings.shotTrayAutoDismissSeconds) {
+                            ForEach([3, 5, 10, 30], id: \.self) { seconds in
+                                Text(L10n.f("settings.shot.tray_seconds", "%d 秒", seconds)).tag(seconds)
+                            }
+                        }
+                        .frame(maxWidth: 220)
+                    }
+                    Text(L10n.t("settings.shot.tray_dismiss_caption",
+                                "收起只是托盘项消失;截图仍在剪贴板与磁盘里。悬停托盘会暂停计时。"))
+                        .settingsCaption()
+                }
+            }
+        }
+        .formStyle(.grouped)
+    }
+
+    private var displayDirectory: String {
+        (settings.shotSaveDirectoryURL.path as NSString).abbreviatingWithTildeInPath
+    }
+
+    /// Desktop/Documents/Downloads 受 TCC 文件夹保护(spec §7:如实告知)。
+    private var isTCCProtectedDirectory: Bool {
+        let path = settings.shotSaveDirectoryURL.standardizedFileURL.path
+        let home = FileManager.default.homeDirectoryForCurrentUser.path
+        return ["\(home)/Desktop", "\(home)/Documents", "\(home)/Downloads"]
+            .contains { path == $0 || path.hasPrefix($0 + "/") }
+    }
+
+    private func chooseDirectory() {
+        let panel = NSOpenPanel()
+        panel.canChooseFiles = false
+        panel.canChooseDirectories = true
+        panel.canCreateDirectories = true
+        panel.allowsMultipleSelection = false
+        panel.directoryURL = settings.shotSaveDirectoryURL
+        if panel.runModal() == .OK, let url = panel.url {
+            settings.shotSaveDirectory = url.path
+        }
     }
 }
 
@@ -40,7 +184,19 @@ private struct GeneralTab: View {
     var body: some View {
         Form {
             Section(L10n.t("settings.general.section.capture", "圈选")) {
-                HotkeyRecorderRow()
+                HotkeyRecorderRow(
+                    label: L10n.t("hotkey.label", "圈选热键"),
+                    helperIdle: L10n.t("hotkey.helper_idle", "在任何应用中按下即可开始圈选。"),
+                    keyCode: $settings.hotkeyKeyCode,
+                    modifiers: $settings.hotkeyModifiers,
+                    defaultKeyCode: 1,
+                    defaultModifiers: 768,
+                    resetHelp: L10n.t("hotkey.reset_help", "还原为 ⌘⇧S"),
+                    conflictCheck: { keyCode, modifiers in
+                        (keyCode == settings.shotHotkeyKeyCode && modifiers == settings.shotHotkeyModifiers)
+                            ? L10n.t("settings.shot.hotkey_conflict_reverse", "与截图热键相同,请换一个组合。")
+                            : nil
+                    })
             }
 
             Section(L10n.t("settings.general.section.more_triggers", "更多唤起方式")) {
