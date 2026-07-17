@@ -62,6 +62,70 @@
 "tray.reveal" = "Reveal in Finder";
 /* F21 tray card × tooltip */
 "tray.remove" = "Remove (keeps saved file)";
+/* F22 tray card ✏️ tooltip: open annotation editor */
+"tray.annotate" = "Annotate";
+/* F22 editor tool */
+"editor.tool.select" = "Select";
+/* F22 editor tool */
+"editor.tool.crop" = "Crop";
+/* F22 editor tool */
+"editor.tool.rect" = "Rectangle";
+/* F22 editor tool */
+"editor.tool.rect_filled" = "Filled Rectangle";
+/* F22 editor tool */
+"editor.tool.ellipse" = "Ellipse";
+/* F22 editor tool */
+"editor.tool.line" = "Line";
+/* F22 editor tool */
+"editor.tool.arrow" = "Arrow";
+/* F22 editor tool */
+"editor.tool.text" = "Text";
+/* F22 editor tool */
+"editor.tool.mosaic" = "Mosaic";
+/* F22 editor tool: dim everything except region */
+"editor.tool.spotlight" = "Spotlight";
+/* F22 editor tool: auto-increment numbered badge */
+"editor.tool.counter" = "Counter";
+/* F22 editor tool */
+"editor.tool.pen" = "Pen";
+/* F22 stroke width picker tooltip */
+"editor.stroke" = "Thickness";
+/* F22 toolbar button */
+"editor.save_as" = "Save As…";
+/* F22 toolbar primary button: flatten+persist+close (spec S4) */
+"editor.done" = "Done";
+/* F22 inline text field placeholder */
+"editor.text_placeholder" = "Type text…";
+/* F22 zoom-to-fit button */
+"editor.zoom_fit" = "Fit";
+/* F22 bottom bar button when cropRect set */
+"editor.crop_reset" = "Clear Crop";
+/* F22 bottom bar tooltip */
+"editor.copy" = "Copy (flattened)";
+/* F22 bottom bar tooltip */
+"editor.share" = "Share…";
+/* F22 bottom bar drag-out pill */
+"editor.drag_me" = "≡ Drag Me ≡";
+/* F22 undo action name */
+"editor.undo.add" = "Add Annotation";
+/* F22 undo action name */
+"editor.undo.remove" = "Delete Annotation";
+/* F22 undo action name */
+"editor.undo.move" = "Move Annotation";
+/* F22 undo action name */
+"editor.undo.crop" = "Crop";
+/* F22 undo action name */
+"editor.undo.text" = "Edit Text";
+/* F22 undo action name */
+"editor.undo.style" = "Change Style";
+/* F22 dirty-close alert title */
+"editor.close_title" = "Unsaved Annotations";
+/* F22 dirty-close alert body (spec S4: discard keeps vector doc at runtime) */
+"editor.close_body" = "\"Save\" delivers per your settings and closes. \"Don't Save\" keeps the annotations on the tray item — reopen to continue.";
+/* F22 dirty-close alert button */
+"editor.close_save" = "Save";
+/* F22 dirty-close alert button */
+"editor.close_discard" = "Don't Save";
 /* settings tab (F20) */
 "settings.tab.screenshot" = "Screenshot";
 /* settings section header */

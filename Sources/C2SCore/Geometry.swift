@@ -50,4 +50,15 @@ public enum Geometry {
         }
         return CGRect(x: minX, y: minY, width: maxX - minX, height: maxY - minY)
     }
+
+    /// 点到线段的最短距离(F22 标注命中)。
+    public static func distance(from p: CGPoint, toSegment segment: (CGPoint, CGPoint)) -> CGFloat {
+        let (a, b) = segment
+        let abx = b.x - a.x, aby = b.y - a.y
+        let lengthSquared = abx * abx + aby * aby
+        guard lengthSquared > 0 else { return hypot(p.x - a.x, p.y - a.y) }
+        let t = max(0, min(1, ((p.x - a.x) * abx + (p.y - a.y) * aby) / lengthSquared))
+        let proj = CGPoint(x: a.x + t * abx, y: a.y + t * aby)
+        return hypot(p.x - proj.x, p.y - proj.y)
+    }
 }

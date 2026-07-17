@@ -62,6 +62,70 @@
 "tray.reveal" = "Finder に表示";
 /* F21 tray card × tooltip */
 "tray.remove" = "取り除く(保存済みファイルは残ります)";
+/* F22 tray card ✏️ tooltip: open annotation editor */
+"tray.annotate" = "注釈";
+/* F22 editor tool */
+"editor.tool.select" = "選択";
+/* F22 editor tool */
+"editor.tool.crop" = "切り取り";
+/* F22 editor tool */
+"editor.tool.rect" = "枠";
+/* F22 editor tool */
+"editor.tool.rect_filled" = "塗りつぶし枠";
+/* F22 editor tool */
+"editor.tool.ellipse" = "楕円";
+/* F22 editor tool */
+"editor.tool.line" = "直線";
+/* F22 editor tool */
+"editor.tool.arrow" = "矢印";
+/* F22 editor tool */
+"editor.tool.text" = "テキスト";
+/* F22 editor tool */
+"editor.tool.mosaic" = "モザイク";
+/* F22 editor tool: dim everything except region */
+"editor.tool.spotlight" = "スポットライト";
+/* F22 editor tool: auto-increment numbered badge */
+"editor.tool.counter" = "番号";
+/* F22 editor tool */
+"editor.tool.pen" = "ペン";
+/* F22 stroke width picker tooltip */
+"editor.stroke" = "太さ";
+/* F22 toolbar button */
+"editor.save_as" = "別名で保存…";
+/* F22 toolbar primary button: flatten+persist+close (spec S4) */
+"editor.done" = "完了";
+/* F22 inline text field placeholder */
+"editor.text_placeholder" = "テキストを入力…";
+/* F22 zoom-to-fit button */
+"editor.zoom_fit" = "フィット";
+/* F22 bottom bar button when cropRect set */
+"editor.crop_reset" = "切り取りを解除";
+/* F22 bottom bar tooltip */
+"editor.copy" = "コピー(統合)";
+/* F22 bottom bar tooltip */
+"editor.share" = "共有…";
+/* F22 bottom bar drag-out pill */
+"editor.drag_me" = "≡ ドラッグ ≡";
+/* F22 undo action name */
+"editor.undo.add" = "注釈を追加";
+/* F22 undo action name */
+"editor.undo.remove" = "注釈を削除";
+/* F22 undo action name */
+"editor.undo.move" = "注釈を移動";
+/* F22 undo action name */
+"editor.undo.crop" = "切り取り";
+/* F22 undo action name */
+"editor.undo.text" = "テキストを編集";
+/* F22 undo action name */
+"editor.undo.style" = "スタイルを変更";
+/* F22 dirty-close alert title */
+"editor.close_title" = "未保存の注釈があります";
+/* F22 dirty-close alert body (spec S4: discard keeps vector doc at runtime) */
+"editor.close_body" = "「保存」は設定に従って書き出して閉じます。「保存しない」でも注釈はトレイに残り、次回開いたときに続きから編集できます。";
+/* F22 dirty-close alert button */
+"editor.close_save" = "保存";
+/* F22 dirty-close alert button */
+"editor.close_discard" = "保存しない";
 /* settings tab (F20) */
 "settings.tab.screenshot" = "スクリーンショット";
 /* settings section header */

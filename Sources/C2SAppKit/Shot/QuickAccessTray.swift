@@ -10,17 +10,29 @@ import C2SCore
 @MainActor
 public final class TrayShotItem: ObservableObject, Identifiable {
     public let id = UUID()
-    /// 降采样缩略图(≤480px,重绘所得,与原帧解耦)。
-    let thumbnail: CGImage
-    let pointSize: CGSize
-    /// 交付格式的完整编码数据(💾/拖出直接写它,不再重编码)。
-    let data: Data
+    /// 降采样缩略图(≤480px,重绘所得,与原帧解耦)。Done 后更新为标注版。
+    @Published private(set) var thumbnail: CGImage
+    private(set) var pointSize: CGSize
+    /// 交付格式的完整编码数据(💾/拖出/编辑器解码都用它,不持原始 CGImage)。
+    private(set) var data: Data
     /// "png" / "jpg"(交付时按设置与 forcePNG 定死,spec §6)。
     let ext: String
     /// 已落盘路径(nil = 未落盘;💾 或拖出时现场写)。
     @Published var fileURL: URL?
     /// 拖出用临时文件(未落盘项拖拽开始时现场写入,spec S3)。
     var dragTempURL: URL?
+    /// F22 关窗后保留的编辑状态(spec S4:重开回到同一文档继续编辑)。
+    /// 只存纯值文档 + 原始编码 Data——**不存 EditorModel/解码位图**
+    /// (5K 位图 ~56MB,关窗必须释放;内存纪律同上)。
+    struct EditorState {
+        var document: AnnotationDocument
+        var committedDocument: AnnotationDocument
+        /// 第一次打开编辑器时的原始编码图(Done 会把 item.data 覆盖为压平版,
+        /// 续编必须回到未压平的底图)。
+        let sourceData: Data
+        let sourcePointSize: CGSize
+    }
+    var editorState: EditorState?
 
     init(thumbnail: CGImage, pointSize: CGSize, data: Data, ext: String, fileURL: URL?) {
         self.thumbnail = thumbnail
@@ -28,6 +40,14 @@ public final class TrayShotItem: ObservableObject, Identifiable {
         self.data = data
         self.ext = ext
         self.fileURL = fileURL
+    }
+
+    /// Done 交付后同步(spec S4:托盘缩略图更新为标注后版本;裁剪会改 pointSize)。
+    func updateFlattened(data: Data, thumbnail: CGImage, pointSize: CGSize) {
+        self.data = data
+        self.thumbnail = thumbnail
+        self.pointSize = pointSize
+        dragTempURL = nil // 旧临时文件内容已过期
     }
 }
 
@@ -46,6 +66,9 @@ public final class QuickAccessTray: ObservableObject {
     }
 
     static let visibleStackCount = 5
+
+    /// F22:点卡片/✏️ = 打开编辑器(coordinator 注入,spec S3)。
+    var onOpenItem: ((TrayShotItem) -> Void)?
 
     private let settings: SettingsStore
     private var panel: NSPanel?
@@ -96,6 +119,15 @@ public final class QuickAccessTray: ObservableObject {
         layoutPanel()
     }
 
+    func item(id: UUID) -> TrayShotItem? {
+        items.first { $0.id == id }
+    }
+
+    /// 外部(编辑器 Done)改了缩略图/尺寸后重排面板。
+    func refreshLayout() {
+        layoutPanel()
+    }
+
     // MARK: 拖出(spec S3:拖走就是拿走)
 
     /// 拖拽开始:保证有可拖的文件 URL(未落盘 → 现场写临时文件,
@@ -140,6 +172,18 @@ public final class QuickAccessTray: ObservableObject {
     private func pauseAutoDismiss() {
         for (_, work) in dismissWorkItems { work.cancel() }
         dismissWorkItems.removeAll()
+    }
+
+    /// F22:编辑器打开期间暂停该项的自动收起——编辑中托盘项凭空消失会连
+    /// 文档一起丢(spec S4「不保存仍可重开继续」的前提是项还在)。
+    func pauseAutoDismiss(for id: UUID) {
+        dismissWorkItems.removeValue(forKey: id)?.cancel()
+    }
+
+    /// 编辑器关窗后恢复计时(设置开着才会真排)。
+    func resumeAutoDismiss(for id: UUID) {
+        guard let item = item(id: id) else { return }
+        scheduleAutoDismiss(for: item)
     }
 
     private func resumeAutoDismiss() {
@@ -311,7 +355,8 @@ private struct TrayCardView: View {
     @State private var hovering = false
 
     /// 底部动作条在卡片(SwiftUI 左上原点)里的矩形;拖拽层按它放行点击。
-    static let actionsRect = CGRect(x: (192 - 80) / 2, y: 122 - 44, width: 80, height: 40)
+    /// (三键 ✏️💾× = 24×3 + 6×2 间距 = 84,留余量取 100)
+    static let actionsRect = CGRect(x: (192 - 100) / 2, y: 122 - 44, width: 100, height: 40)
 
     var body: some View {
         ZStack {
@@ -341,6 +386,17 @@ private struct TrayCardView: View {
 
     private var actions: some View {
         HStack(spacing: 6) {
+            Button {
+                tray.onOpenItem?(item)
+            } label: {
+                Image(systemName: "pencil.tip.crop.circle")
+                    .font(.system(size: 11, weight: .semibold))
+                    .frame(width: 24, height: 24)
+                    .background(.regularMaterial, in: Circle())
+            }
+            .buttonStyle(.plain)
+            .help(L10n.t("tray.annotate", "标注"))
+
             Button {
                 tray.saveOrReveal(item)
             } label: {
@@ -392,6 +448,7 @@ private struct TrayDragSurface: NSViewRepresentable {
         view.dragPreview = NSImage(cgImage: item.thumbnail,
                                    size: fittedPreviewSize(for: item))
         view.onDragEnded = { completed in tray.dragEnded(item, completed: completed) }
+        view.onClick = { tray.onOpenItem?(item) } // 点卡片 = 打开编辑器(spec S3)
         view.actionsVisible = actionsVisible
         view.actionsRectTopLeft = TrayCardView.actionsRect
     }
@@ -408,17 +465,27 @@ private struct TrayDragSurface: NSViewRepresentable {
 final class TrayDragNSView: NSView, NSDraggingSource {
     var provideFileURL: () -> URL? = { nil }
     var dragPreview: NSImage?
+    /// 拖起时现算预览(编辑器 Drag Me 用:压平昂贵,拖之前不做)。
+    var providePreview: (() -> NSImage?)?
     var onDragEnded: (Bool) -> Void = { _ in }
+    /// 单击(未拖动)回调(托盘卡点击 = 打开编辑器,spec S3)。
+    var onClick: (() -> Void)?
     /// 悬停中(动作按钮可见)才对按钮区放行点击。
     var actionsVisible = false
     /// 动作按钮区(SwiftUI 左上原点坐标;hitTest 内换算)。
     var actionsRectTopLeft: CGRect = .zero
+    /// 编辑器 Drag Me:内容是被动展示,整块都归拖拽层(子 NSHostingView 不抢事件)。
+    var interceptsAllHits = false
 
     private var mouseDownEvent: NSEvent?
 
     /// 按钮区放行:返回 nil 让事件落回 NSHostingView,由 SwiftUI Button 接住。
     /// 不放行的话 AppKit hitTest 会命中本视图,叠在上方的 SwiftUI 按钮永远点不到。
     override func hitTest(_ point: NSPoint) -> NSView? {
+        if interceptsAllHits {
+            let local = convert(point, from: superview)
+            return bounds.contains(local) ? self : nil
+        }
         guard let hit = super.hitTest(point), hit === self else { return super.hitTest(point) }
         if actionsVisible {
             let local = convert(point, from: superview)
@@ -444,21 +511,27 @@ final class TrayDragNSView: NSView, NSDraggingSource {
         guard let url = provideFileURL() else { return }
 
         let draggingItem = NSDraggingItem(pasteboardWriter: url as NSURL)
-        let preview = dragPreview
+        // 预览兜底链:显式闭包 → 预置图 → 现读刚写的文件(编辑器 Drag Me 走这条)
+        let preview = providePreview?() ?? dragPreview ?? NSImage(contentsOf: url)
         let frame = previewFrame(for: preview)
         draggingItem.setDraggingFrame(frame, contents: preview)
         beginDraggingSession(with: [draggingItem], event: down, source: self)
     }
 
     override func mouseUp(with event: NSEvent) {
-        mouseDownEvent = nil // 单击暂无动作(点开进编辑器 = 切片③)
+        if mouseDownEvent != nil { onClick?() } // 单击(未升级为拖拽)
+        mouseDownEvent = nil
     }
 
     private func previewFrame(for image: NSImage?) -> CGRect {
-        guard let image else { return bounds }
-        return CGRect(x: bounds.midX - image.size.width / 2,
-                      y: bounds.midY - image.size.height / 2,
-                      width: image.size.width, height: image.size.height)
+        guard let image, image.size.width > 0, image.size.height > 0 else { return bounds }
+        // 统一压到 ≤180pt(文件兜底预览是全尺寸图,不缩会拖出一张巨图)
+        let maxSide: CGFloat = 180
+        let scale = min(1, maxSide / max(image.size.width, image.size.height))
+        let size = CGSize(width: image.size.width * scale, height: image.size.height * scale)
+        return CGRect(x: bounds.midX - size.width / 2,
+                      y: bounds.midY - size.height / 2,
+                      width: size.width, height: size.height)
     }
 
     func draggingSession(_ session: NSDraggingSession,

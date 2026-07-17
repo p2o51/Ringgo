@@ -24,6 +24,8 @@ public final class AppCoordinator: ObservableObject {
     /// F21 托盘 + F20 产物管线(lazy:依赖 init 注入的 settings)。
     private lazy var tray = QuickAccessTray(settings: settings)
     private lazy var shotPipeline = ShotPipeline(settings: settings, tray: tray)
+    /// F22 标注编辑器(托盘点击/✏️ 进入)。
+    private lazy var editorManager = AnnotationEditorManager(settings: settings, tray: tray)
 
     /// 当前覆盖层会话模式(触发点定死;spec §1 热键定意图)。
     private var overlayMode: OverlayMode = .search
@@ -66,6 +68,13 @@ public final class AppCoordinator: ObservableObject {
 
     public func start() {
         capture.prewarm()
+        tray.onOpenItem = { [weak self] item in
+            guard let self else { return }
+            // spec S3:覆盖层还在(圈选 📸 后点托盘)→ 先退覆盖层再开编辑器,
+            // 否则编辑器窗口开在 .screenSaver 覆盖层下面不可见(非会话期 no-op)
+            self.dismissOverlay(immediate: true)
+            self.editorManager.open(item)
+        }
         hotkeys.onEvent = { [weak self] event in self?.handle(event) }
         hotkeys.onError = { [weak self] message in self?.showHotkeyError(message) }
         multitouch.onFirstTap = { [weak self] in self?.prewarmCapture() }
