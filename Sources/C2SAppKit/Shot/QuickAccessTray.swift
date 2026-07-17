@@ -64,10 +64,12 @@ public final class QuickAccessTray: ObservableObject {
 
     @Published private(set) var items: [TrayShotItem] = [] // 最新在前
     @Published var expanded = false
-    /// 悬停托盘 = 暂停所有自动收起计时(spec S3)。
+    /// 悬停托盘 = 暂停所有自动收起计时(spec S3)+ 堆叠扇开(v2)。
     @Published var panelHovered = false {
         didSet { panelHovered ? pauseAutoDismiss() : resumeAutoDismiss() }
     }
+    /// v2(2026-07-17 用户拍板):悬停中的卡片升到最上层——被压住的图也点得到。
+    @Published var hoveredCardID: UUID?
 
     static let visibleStackCount = 5
 
@@ -242,7 +244,7 @@ public final class QuickAccessTray: ObservableObject {
             return
         }
         let panel = ensurePanel()
-        let root = TrayRootView(tray: self)
+        let root = TrayRootView(tray: self, reduceEffects: settings.reduceEffects)
         if let hostingView {
             hostingView.rootView = root
         } else {
@@ -274,12 +276,24 @@ public final class QuickAccessTray: ObservableObject {
 // MARK: - SwiftUI 内容
 
 /// 托盘根视图:折叠 = 错位堆叠(最新在上)+「+n」徽标;展开 = 可滚动纵列。
+/// v2 堆叠交互(2026-07-17 用户拍板):鼠标进托盘 → 扇开(每张露出一条可指的边),
+/// 悬停哪张哪张升到最上层 + 微放大——被压住的图也能点/拖/出动作;弹簧动画,
+/// 减弱动态一律直切。
 struct TrayRootView: View {
     @ObservedObject var tray: QuickAccessTray
+    let reduceEffects: Bool
 
     private static let cardWidth: CGFloat = 192
     private static let cardHeight: CGFloat = 122
-    private static let stackOffset: CGFloat = 9
+    /// 平时紧凑 / 悬停扇开 的错位间距。
+    private static let idleOffset: CGFloat = 9
+    private static let fanOffset: CGFloat = 30
+
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    private var motionReduced: Bool { reduceEffects || reduceMotion }
+    private var spring: Animation? {
+        motionReduced ? nil : .spring(response: 0.32, dampingFraction: 0.8)
+    }
 
     var body: some View {
         Group {
@@ -296,17 +310,34 @@ struct TrayRootView: View {
     private var collapsedStack: some View {
         let visible = Array(tray.items.prefix(QuickAccessTray.visibleStackCount))
         let hiddenCount = tray.items.count - visible.count
+        let spacing = tray.panelHovered ? Self.fanOffset : Self.idleOffset
+        // 高度按扇开状态预留(空白区不吃点击,SwiftUI 命中测试放行):
+        // 窗口 frame 不用随悬停伸缩,动画只发生在内容层
+        let reservedHeight = Self.cardHeight
+            + CGFloat(max(0, QuickAccessTray.visibleStackCount - 1)) * Self.fanOffset
         return ZStack(alignment: .bottom) {
             ForEach(Array(visible.enumerated().reversed()), id: \.element.id) { index, item in
-                TrayCardView(item: item, tray: tray, interactive: index == 0)
-                    .scaleEffect(1 - CGFloat(index) * 0.03, anchor: .bottom)
-                    .offset(y: -CGFloat(index) * Self.stackOffset)
-                    .allowsHitTesting(index == 0)
+                let hovered = tray.hoveredCardID == item.id
+                TrayCardView(item: item, tray: tray, interactive: true)
+                    .scaleEffect(hovered ? 1.05
+                                 : 1 - CGFloat(index) * (tray.panelHovered ? 0.015 : 0.03),
+                                 anchor: .bottom)
+                    .offset(y: -CGFloat(index) * spacing)
+                    // 悬停升顶:默认新图在上(index 小 z 大),被指到的直接拔到 100
+                    .zIndex(hovered ? 100 : Double(visible.count - index))
+                    .transition(motionReduced
+                                ? .opacity
+                                : .asymmetric(
+                                    insertion: .move(edge: .bottom)
+                                        .combined(with: .scale(scale: 0.88, anchor: .bottom))
+                                        .combined(with: .opacity),
+                                    removal: .scale(scale: 0.85).combined(with: .opacity)))
             }
         }
-        .frame(width: Self.cardWidth,
-               height: Self.cardHeight + CGFloat(max(0, visible.count - 1)) * Self.stackOffset,
-               alignment: .bottom)
+        .frame(width: Self.cardWidth, height: reservedHeight, alignment: .bottom)
+        .animation(spring, value: tray.panelHovered)
+        .animation(spring, value: tray.hoveredCardID)
+        .animation(spring, value: tray.items.map(\.id))
         .overlay(alignment: .topTrailing) {
             if hiddenCount > 0 {
                 Button {
@@ -387,7 +418,15 @@ private struct TrayCardView: View {
             }
         }
         .frame(width: 192, height: 122)
-        .onHover { hovering = $0 }
+        .onHover { isHovering in
+            hovering = isHovering
+            // 升顶信号(v2):进 = 记我;出 = 只清自己(别把别张刚设的清掉)
+            if isHovering {
+                tray.hoveredCardID = item.id
+            } else if tray.hoveredCardID == item.id {
+                tray.hoveredCardID = nil
+            }
+        }
     }
 
     private var actions: some View {
