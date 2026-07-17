@@ -12,6 +12,9 @@ final class AnnotationEditorManager: NSObject {
 
     private let settings: SettingsStore
     private weak var tray: QuickAccessTray?
+    private let pinManager: PinManager
+    /// S5 共享搜索面板(单实例,跟随最近发起请求的编辑器窗口停靠)。
+    private let searchPanel = EditorSearchPanelController()
     private var windows: [UUID: EditorWindowBox] = [:]
 
     /// item 直接存进 box:脏关窗的「保存」不得回查托盘——编辑期间项可能已被
@@ -28,9 +31,10 @@ final class AnnotationEditorManager: NSObject {
         }
     }
 
-    init(settings: SettingsStore, tray: QuickAccessTray) {
+    init(settings: SettingsStore, tray: QuickAccessTray, pinManager: PinManager) {
         self.settings = settings
         self.tray = tray
+        self.pinManager = pinManager
     }
 
     // MARK: 打开 / 关闭
@@ -94,7 +98,10 @@ final class AnnotationEditorManager: NSObject {
             onSaveAs: { [weak self] in self?.saveAs(itemID: item.id) },
             onCopy: { [weak self] in self?.copyFlattened(itemID: item.id) },
             onShare: { [weak self] anchor in self?.share(itemID: item.id, anchor: anchor) },
-            provideDragFileURL: { [weak self] in self?.dragFileURL(itemID: item.id) })
+            provideDragFileURL: { [weak self] in self?.dragFileURL(itemID: item.id) },
+            onPin: { [weak self] in self?.pinCurrent(itemID: item.id) },
+            onAIPrompt: { [weak self] kind in self?.sendAIPrompt(itemID: item.id, kind: kind) },
+            onAsk: { [weak self] text in self?.sendAsk(itemID: item.id, text: text) })
 
         let hosting = NSHostingView(rootView: root)
         let visible = NSScreen.main?.visibleFrame ?? CGRect(x: 0, y: 0, width: 1440, height: 900)
@@ -293,6 +300,61 @@ final class AnnotationEditorManager: NSObject {
                      y: contentView.bounds.maxY - 36, width: 24, height: 24)
             : anchor
         picker.show(relativeTo: rect, of: contentView, preferredEdge: .minY)
+    }
+
+    // MARK: F23 钉图 / S5 AI chips(发出去的都是「含标注压平的当前画布」)
+
+    private func pinCurrent(itemID: UUID) {
+        guard let box = windows[itemID] else { return }
+        box.model.commitTextEditing()
+        guard let flattened = box.model.flatten() else { return }
+        pinManager.pin(image: flattened,
+                       pointSize: box.model.flattenedPointSize,
+                       origin: box.item.originGlobal,
+                       item: box.item)
+    }
+
+    /// 翻译整图 / 可视化:一次性动作,prompt 复用 F15(spec S5)。
+    private func sendAIPrompt(itemID: UUID, kind: EditorAIPrompt) {
+        guard let box = windows[itemID] else { return }
+        box.model.commitTextEditing()
+        guard let flattened = box.model.flatten() else { return }
+        switch kind {
+        case .translate:
+            let targetName = currentTranslationTargetName()
+            let prompt = L10n.f("prompt.translate_image",
+                                "请把这张图片里的所有文字翻译成%@,按原文的结构和顺序输出译文。", targetName)
+            searchPanel.send(image: flattened, query: prompt, pillText: nil,
+                             chip: QueryModeChip(mode: .translate, icon: "translate",
+                                                 label: L10n.f("chip.translate", "翻译 · %@", targetName)),
+                             aiMode: true, nextTo: box.window)
+        case .visualize:
+            let prompt = L10n.t("prompt.visualize_image",
+                                "请可视化这张图片的内容:适合数据或结构就生成可视化图表(信息图/流程图/对比表等),更适合画面就用 nano banana 生成一张新图片来呈现。")
+            searchPanel.send(image: flattened, query: prompt, pillText: nil,
+                             chip: QueryModeChip(mode: .visualize, icon: "chart.bar.xaxis",
+                                                 label: L10n.t("common.visualize", "可视化")),
+                             aiMode: true, nextTo: box.window)
+        }
+    }
+
+    /// 提问:整图 + 问题(每次发送 = 新会话重传当前画布,spec S5)。
+    /// aiMode = true 按 spec S5 字面(multisearch + AI Mode,图+文问答);
+    /// F11 覆盖层整屏提问现行为 false,两处分歧已在 spec 决策记录标注。
+    private func sendAsk(itemID: UUID, text: String) {
+        guard let box = windows[itemID] else { return }
+        box.model.commitTextEditing()
+        guard let flattened = box.model.flatten() else { return }
+        searchPanel.send(image: flattened, query: text, pillText: text,
+                         chip: nil, aiMode: true, nextTo: box.window)
+    }
+
+    /// F10 语言 UX 同源:目标 = 设置持久值 ∨ 系统首选。
+    private func currentTranslationTargetName() -> String {
+        let code = settings.translationTargetCode.isEmpty
+            ? (TranslationLanguageOption.menuOptions().first?.id ?? "en")
+            : settings.translationTargetCode
+        return TranslationLanguageOption.option(for: code).displayName
     }
 
     /// Drag Me:拖起时现场压平写临时文件(spec S4,机制同托盘拖出)。

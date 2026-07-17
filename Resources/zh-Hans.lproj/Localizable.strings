@@ -124,6 +124,30 @@
 "editor.close_body" = "「保存」= 按设置交付并关闭;「不保存」= 标注保留在托盘项里,下次点开继续。";
 /* F22 dirty-close alert button */
 "editor.close_save" = "保存";
+/* F23 editor bottom bar tooltip */
+"editor.pin" = "钉在屏幕上";
+/* S5 editor AI chip: one-shot whole-canvas translate via Lens+AI Mode */
+"editor.ai.translate" = "翻译整图";
+/* S5 editor AI chip: focuses the ask field */
+"editor.ai.ask" = "提问";
+/* S5 editor AI row ask-field placeholder */
+"editor.ai.placeholder" = "问点什么,图和问题一起发出去…";
+/* S5 editor search panel window title (hidden but a11y) */
+"editor.panel.title" = "搜索";
+/* S5 editor search panel pill placeholder (same-session multisearch) */
+"editor.panel.placeholder" = "接着追问…";
+/* S5 editor search panel empty state */
+"editor.panel.empty" = "从编辑器发起翻译 / 提问 / 可视化";
+/* F23 pin window × / context menu */
+"pin.close" = "关闭钉图";
+/* F23 pin context menu: open editor */
+"pin.annotate" = "标注…";
+/* F23 pin context menu */
+"pin.copy" = "拷贝";
+/* F23 pin context menu */
+"pin.save" = "保存到磁盘";
+/* F23 tray card 📌 tooltip */
+"tray.pin" = "钉在屏幕上";
 /* F22 dirty-close alert button */
 "editor.close_discard" = "不保存";
 /* settings tab (F20) */

@@ -17,11 +17,14 @@ public final class ShotPipeline {
         let pointSize: CGSize
         /// 窗口截图强制 PNG(透明 alpha,阴影开关只控投影,spec §6)。
         let forcePNG: Bool
+        /// 截取区域的 AppKit 全局原位(F23 钉图「原位」;nil = 不可知)。
+        let originGlobal: CGRect?
 
-        init(image: CGImage, pointSize: CGSize, forcePNG: Bool) {
+        init(image: CGImage, pointSize: CGSize, forcePNG: Bool, originGlobal: CGRect? = nil) {
             self.image = image
             self.pointSize = pointSize
             self.forcePNG = forcePNG
+            self.originGlobal = originGlobal
         }
     }
 
@@ -53,6 +56,7 @@ public final class ShotPipeline {
         let saveEnabled = settings.shotAutoSave
         let image = product.image
         let pointSize = product.pointSize
+        let originGlobal = product.originGlobal
         // 缩略图现在就做(降采样重绘 = 与原帧存储解耦),原图之后只活到编码结束
         let thumbnail = LensService.downscaled(image, maxDimension: 480) ?? image
 
@@ -69,6 +73,7 @@ public final class ShotPipeline {
                                     tiffData: tiffData, thumbnail: thumbnail,
                                     pointSize: pointSize, usePNG: usePNG,
                                     copyEnabled: copyEnabled, saveEnabled: saveEnabled,
+                                    originGlobal: originGlobal,
                                     screenFrame: screenFrame)
             }
         }
@@ -76,7 +81,8 @@ public final class ShotPipeline {
 
     private func finishDelivery(deliveryData: Data?, pngData: Data?, tiffData: Data?,
                                 thumbnail: CGImage, pointSize: CGSize, usePNG: Bool,
-                                copyEnabled: Bool, saveEnabled: Bool, screenFrame: CGRect) {
+                                copyEnabled: Bool, saveEnabled: Bool,
+                                originGlobal: CGRect?, screenFrame: CGRect) {
         if copyEnabled {
             let pasteboard = NSPasteboard.general
             pasteboard.clearContents()
@@ -105,7 +111,8 @@ public final class ShotPipeline {
         }
 
         tray.add(TrayShotItem(thumbnail: thumbnail, pointSize: pointSize,
-                              data: deliveryData, ext: ext, fileURL: fileURL),
+                              data: deliveryData, ext: ext, fileURL: fileURL,
+                              originGlobal: originGlobal),
                  on: screenFrame)
     }
 

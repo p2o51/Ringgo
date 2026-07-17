@@ -21,6 +21,8 @@ public final class TrayShotItem: ObservableObject, Identifiable {
     @Published var fileURL: URL?
     /// 拖出用临时文件(未落盘项拖拽开始时现场写入,spec S3)。
     var dragTempURL: URL?
+    /// 截取区域的 AppKit 全局原位(F23 钉图「原位」;nil = 不可知)。
+    let originGlobal: CGRect?
     /// F22 关窗后保留的编辑状态(spec S4:重开回到同一文档继续编辑)。
     /// 只存纯值文档 + 原始编码 Data——**不存 EditorModel/解码位图**
     /// (5K 位图 ~56MB,关窗必须释放;内存纪律同上)。
@@ -34,12 +36,14 @@ public final class TrayShotItem: ObservableObject, Identifiable {
     }
     var editorState: EditorState?
 
-    init(thumbnail: CGImage, pointSize: CGSize, data: Data, ext: String, fileURL: URL?) {
+    init(thumbnail: CGImage, pointSize: CGSize, data: Data, ext: String, fileURL: URL?,
+         originGlobal: CGRect? = nil) {
         self.thumbnail = thumbnail
         self.pointSize = pointSize
         self.data = data
         self.ext = ext
         self.fileURL = fileURL
+        self.originGlobal = originGlobal
     }
 
     /// Done 交付后同步(spec S4:托盘缩略图更新为标注后版本;裁剪会改 pointSize)。
@@ -69,6 +73,8 @@ public final class QuickAccessTray: ObservableObject {
 
     /// F22:点卡片/✏️ = 打开编辑器(coordinator 注入,spec S3)。
     var onOpenItem: ((TrayShotItem) -> Void)?
+    /// F23:📌 = 钉图(coordinator 注入)。
+    var onPinItem: ((TrayShotItem) -> Void)?
 
     private let settings: SettingsStore
     private var panel: NSPanel?
@@ -355,8 +361,8 @@ private struct TrayCardView: View {
     @State private var hovering = false
 
     /// 底部动作条在卡片(SwiftUI 左上原点)里的矩形;拖拽层按它放行点击。
-    /// (三键 ✏️💾× = 24×3 + 6×2 间距 = 84,留余量取 100)
-    static let actionsRect = CGRect(x: (192 - 100) / 2, y: 122 - 44, width: 100, height: 40)
+    /// (四键 ✏️💾📌× = 24×4 + 6×3 间距 = 114,留余量取 128)
+    static let actionsRect = CGRect(x: (192 - 128) / 2, y: 122 - 44, width: 128, height: 40)
 
     var body: some View {
         ZStack {
@@ -409,6 +415,17 @@ private struct TrayCardView: View {
             .help(item.fileURL == nil
                   ? L10n.t("tray.save", "保存")
                   : L10n.t("tray.reveal", "在 Finder 中显示"))
+
+            Button {
+                tray.onPinItem?(item)
+            } label: {
+                Image(systemName: "pin")
+                    .font(.system(size: 11, weight: .semibold))
+                    .frame(width: 24, height: 24)
+                    .background(.regularMaterial, in: Circle())
+            }
+            .buttonStyle(.plain)
+            .help(L10n.t("tray.pin", "钉在屏幕上"))
 
             Button {
                 tray.remove(item)

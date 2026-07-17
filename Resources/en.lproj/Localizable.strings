@@ -124,6 +124,30 @@
 "editor.close_body" = "\"Save\" delivers per your settings and closes. \"Don't Save\" keeps the annotations on the tray item — reopen to continue.";
 /* F22 dirty-close alert button */
 "editor.close_save" = "Save";
+/* F23 editor bottom bar tooltip */
+"editor.pin" = "Pin to Screen";
+/* S5 editor AI chip: one-shot whole-canvas translate via Lens+AI Mode */
+"editor.ai.translate" = "Translate Image";
+/* S5 editor AI chip: focuses the ask field */
+"editor.ai.ask" = "Ask";
+/* S5 editor AI row ask-field placeholder */
+"editor.ai.placeholder" = "Ask anything — sent together with the image…";
+/* S5 editor search panel window title (hidden but a11y) */
+"editor.panel.title" = "Search";
+/* S5 editor search panel pill placeholder (same-session multisearch) */
+"editor.panel.placeholder" = "Ask a follow-up…";
+/* S5 editor search panel empty state */
+"editor.panel.empty" = "Start a translate / ask / visualize from the editor";
+/* F23 pin window × / context menu */
+"pin.close" = "Close Pin";
+/* F23 pin context menu: open editor */
+"pin.annotate" = "Annotate…";
+/* F23 pin context menu */
+"pin.copy" = "Copy";
+/* F23 pin context menu */
+"pin.save" = "Save to Disk";
+/* F23 tray card 📌 tooltip */
+"tray.pin" = "Pin to Screen";
 /* F22 dirty-close alert button */
 "editor.close_discard" = "Don't Save";
 /* settings tab (F20) */

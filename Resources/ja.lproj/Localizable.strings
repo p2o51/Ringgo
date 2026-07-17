@@ -124,6 +124,30 @@
 "editor.close_body" = "「保存」は設定に従って書き出して閉じます。「保存しない」でも注釈はトレイに残り、次回開いたときに続きから編集できます。";
 /* F22 dirty-close alert button */
 "editor.close_save" = "保存";
+/* F23 editor bottom bar tooltip */
+"editor.pin" = "画面にピン留め";
+/* S5 editor AI chip: one-shot whole-canvas translate via Lens+AI Mode */
+"editor.ai.translate" = "画像を翻訳";
+/* S5 editor AI chip: focuses the ask field */
+"editor.ai.ask" = "質問";
+/* S5 editor AI row ask-field placeholder */
+"editor.ai.placeholder" = "質問を入力 — 画像と一緒に送信されます…";
+/* S5 editor search panel window title (hidden but a11y) */
+"editor.panel.title" = "検索";
+/* S5 editor search panel pill placeholder (same-session multisearch) */
+"editor.panel.placeholder" = "続けて質問…";
+/* S5 editor search panel empty state */
+"editor.panel.empty" = "エディタから翻訳・質問・可視化を実行";
+/* F23 pin window × / context menu */
+"pin.close" = "ピンを閉じる";
+/* F23 pin context menu: open editor */
+"pin.annotate" = "注釈…";
+/* F23 pin context menu */
+"pin.copy" = "コピー";
+/* F23 pin context menu */
+"pin.save" = "ディスクに保存";
+/* F23 tray card 📌 tooltip */
+"tray.pin" = "画面にピン留め";
 /* F22 dirty-close alert button */
 "editor.close_discard" = "保存しない";
 /* settings tab (F20) */

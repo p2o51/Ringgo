@@ -84,6 +84,14 @@ public struct DisplayContext: Sendable, Equatable {
                       height: appKit.height)
     }
 
+    /// 覆盖层本地(左上原点)→ AppKit 全局(左下原点):F23 钉图「原位」定位用。
+    public func globalRect(fromOverlay r: CGRect) -> CGRect {
+        CGRect(x: screenFrame.minX + r.minX,
+               y: screenFrame.maxY - r.maxY,
+               width: r.width,
+               height: r.height)
+    }
+
     /// 覆盖层本地(左上原点)→ CG 全局(主屏左上原点,y 向下)。`overlayRect(fromCGGlobal:)` 的逆。
     public func cgGlobalRect(fromOverlay r: CGRect, mainDisplayHeight: CGFloat) -> CGRect {
         let appKit = CGRect(x: r.minX + screenFrame.minX,

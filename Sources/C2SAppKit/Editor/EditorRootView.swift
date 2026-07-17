@@ -13,6 +13,16 @@ struct EditorRootView: View {
     var onShare: (CGRect) -> Void = { _ in }
     /// Drag Me:拖出前现场压平写临时文件(nil = 压平失败)。
     var provideDragFileURL: () -> URL? = { nil }
+    /// F23 钉图:当前画布(含未 Done 标注)钉成置顶浮窗。
+    var onPin: () -> Void = {}
+    /// S5 AI 一次性动作(翻译整图/可视化):压平画布进共享搜索面板。
+    var onAIPrompt: (EditorAIPrompt) -> Void = { _ in }
+    /// S5 提问:整图 + 问题(F11 整屏提问同机制)。
+    var onAsk: (String) -> Void = { _ in }
+
+    /// S5 提问框(「提问」chip = 聚焦它)。
+    @State private var askText = ""
+    @FocusState private var askFocused: Bool
 
     /// 文本编辑态焦点(中途插入的 TextField 不会自动成 first responder,
     /// 不管焦点的话「打字无处可去」,2026-07-17 审查)。
@@ -21,6 +31,8 @@ struct EditorRootView: View {
     var body: some View {
         VStack(spacing: 0) {
             toolbar
+            Divider().opacity(0.4)
+            aiRow
             Divider().opacity(0.4)
             canvasArea
             Divider().opacity(0.4)
@@ -93,6 +105,52 @@ struct EditorRootView: View {
         .buttonStyle(.plain)
         .help(tool.label)
         .accessibilityLabel(tool.label)
+    }
+
+    // MARK: - S5 AI 行(工具栏下细行,Ringgo 灵魂位:发出去的是含标注压平的当前画布)
+
+    private var aiRow: some View {
+        HStack(spacing: 6) {
+            aiChip(icon: "translate",
+                   label: L10n.t("editor.ai.translate", "翻译整图")) { onAIPrompt(.translate) }
+            aiChip(icon: "bubble.left.and.text.bubble.right",
+                   label: L10n.t("editor.ai.ask", "提问")) { askFocused = true }
+            aiChip(icon: "chart.bar.xaxis",
+                   label: L10n.t("common.visualize", "可视化")) { onAIPrompt(.visualize) }
+
+            TextField(L10n.t("editor.ai.placeholder", "问点什么,图和问题一起发出去…"),
+                      text: $askText)
+                .textFieldStyle(.plain)
+                .font(.system(size: 12))
+                .focused($askFocused)
+                .onSubmit {
+                    let text = askText.trimmingCharacters(in: .whitespacesAndNewlines)
+                    guard !text.isEmpty else { return }
+                    onAsk(text)
+                    askText = ""
+                }
+                .padding(.horizontal, 10)
+                .padding(.vertical, 4)
+                .background(.background.opacity(0.5), in: Capsule())
+                .overlay(Capsule().strokeBorder(Color(nsColor: .separatorColor), lineWidth: 0.5))
+        }
+        .padding(.horizontal, 12)
+        .padding(.vertical, 6)
+        .background(.bar)
+    }
+
+    private func aiChip(icon: String, label: String, action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            HStack(spacing: 4) {
+                Image(systemName: icon).font(.system(size: 11, weight: .medium))
+                Text(label).font(.system(size: 11, weight: .medium))
+            }
+            .padding(.horizontal, 9)
+            .padding(.vertical, 4)
+            .background(.quaternary.opacity(0.5), in: Capsule())
+            .overlay(Capsule().strokeBorder(Color(nsColor: .separatorColor), lineWidth: 0.5))
+        }
+        .buttonStyle(.plain)
     }
 
     private static let palette: [AnnotationColor] = [
@@ -497,11 +555,7 @@ struct EditorRootView: View {
 
             Spacer()
 
-            Button {
-                onCopy()
-            } label: { Image(systemName: "doc.on.doc") }
-                .buttonStyle(.borderless)
-                .help(L10n.t("editor.copy", "拷贝(压平)"))
+            // 角标顺序对齐 spec S4:📤 分享 · 📌 钉图 · ⧉ 拷贝
             GeometryReader { geo in
                 Button {
                     onShare(geo.frame(in: .global))
@@ -511,6 +565,16 @@ struct EditorRootView: View {
                     .frame(maxHeight: .infinity)
             }
             .frame(width: 24, height: 24)
+            Button {
+                onPin()
+            } label: { Image(systemName: "pin") }
+                .buttonStyle(.borderless)
+                .help(L10n.t("editor.pin", "钉在屏幕上"))
+            Button {
+                onCopy()
+            } label: { Image(systemName: "doc.on.doc") }
+                .buttonStyle(.borderless)
+                .help(L10n.t("editor.copy", "拷贝(压平)"))
         }
         .padding(.horizontal, 12)
         .padding(.vertical, 7)

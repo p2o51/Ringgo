@@ -24,8 +24,11 @@ public final class AppCoordinator: ObservableObject {
     /// F21 托盘 + F20 产物管线(lazy:依赖 init 注入的 settings)。
     private lazy var tray = QuickAccessTray(settings: settings)
     private lazy var shotPipeline = ShotPipeline(settings: settings, tray: tray)
+    /// F23 钉图(托盘 📌 / 编辑器 📌 进入)。
+    private lazy var pinManager = PinManager(settings: settings)
     /// F22 标注编辑器(托盘点击/✏️ 进入)。
-    private lazy var editorManager = AnnotationEditorManager(settings: settings, tray: tray)
+    private lazy var editorManager = AnnotationEditorManager(settings: settings, tray: tray,
+                                                             pinManager: pinManager)
 
     /// 当前覆盖层会话模式(触发点定死;spec §1 热键定意图)。
     private var overlayMode: OverlayMode = .search
@@ -75,6 +78,12 @@ public final class AppCoordinator: ObservableObject {
             self.dismissOverlay(immediate: true)
             self.editorManager.open(item)
         }
+        tray.onPinItem = { [weak self] item in self?.pinManager.pin(item: item) }
+        pinManager.onAnnotate = { [weak self] item in
+            guard let self else { return }
+            self.dismissOverlay(immediate: true)
+            self.editorManager.open(item)
+        }
         hotkeys.onEvent = { [weak self] event in self?.handle(event) }
         hotkeys.onError = { [weak self] message in self?.showHotkeyError(message) }
         multitouch.onFirstTap = { [weak self] in self?.prewarmCapture() }
@@ -113,7 +122,8 @@ public final class AppCoordinator: ObservableObject {
                 self.phase = .idle
                 self.shotPipeline.deliver(.init(image: result.image,
                                                 pointSize: result.context.pointSize,
-                                                forcePNG: false),
+                                                forcePNG: false,
+                                                originGlobal: result.context.screenFrame),
                                           on: result.context.screenFrame)
             } catch {
                 self.tray.restoreAfterCapture()
@@ -366,7 +376,8 @@ public final class AppCoordinator: ObservableObject {
             dismissOverlay()
             return
         }
-        shotPipeline.deliver(.init(image: cropped, pointSize: rect.size, forcePNG: false),
+        shotPipeline.deliver(.init(image: cropped, pointSize: rect.size, forcePNG: false,
+                                   originGlobal: cap.context.globalRect(fromOverlay: rect)),
                              on: cap.context.screenFrame)
         dismissOverlayAfterShutterFlash()
     }
@@ -376,7 +387,8 @@ public final class AppCoordinator: ObservableObject {
         guard let cap = currentCapture else { return }
         shotPipeline.deliver(.init(image: cap.image,
                                    pointSize: cap.context.pointSize,
-                                   forcePNG: false),
+                                   forcePNG: false,
+                                   originGlobal: cap.context.screenFrame),
                              on: cap.context.screenFrame)
         dismissOverlayAfterShutterFlash()
     }
@@ -392,12 +404,21 @@ public final class AppCoordinator: ObservableObject {
         let scTask = shotSCWindowsTask
         Task { @MainActor [weak self] in
             guard let self else { return }
+            let originGlobal = context.globalRect(fromOverlay: overlayFrame)
             if let scWindow = (await scTask?.value)?[win.windowID],
                let output = try? await WindowCaptureService.capture(window: scWindow,
                                                                     includeShadow: includeShadow) {
+                // 产物含阴影外扩边距 → origin 反向外扩,钉图才能「窗口框对齐原位、
+                // 阴影向外溢出」(spec S6;不扩会整体偏 ~36pt,审查)
+                let insets = output.shadowInsets
+                let pinOrigin = CGRect(x: originGlobal.minX - insets.left,
+                                       y: originGlobal.minY - insets.bottom,
+                                       width: originGlobal.width + insets.left + insets.right,
+                                       height: originGlobal.height + insets.top + insets.bottom)
                 self.shotPipeline.deliver(.init(image: output.image,
                                                 pointSize: output.pointSize,
-                                                forcePNG: true), // 透明 alpha,强制 PNG(spec §6)
+                                                forcePNG: true, // 透明 alpha,强制 PNG(spec §6)
+                                                originGlobal: pinOrigin),
                                           on: context.screenFrame)
                 return
             }
@@ -406,7 +427,8 @@ public final class AppCoordinator: ObservableObject {
             guard !px.isNull, let cropped = frozen.cropping(to: px) else { return }
             self.shotPipeline.deliver(.init(image: cropped,
                                             pointSize: overlayFrame.size,
-                                            forcePNG: false),
+                                            forcePNG: false,
+                                            originGlobal: originGlobal),
                                       on: context.screenFrame)
         }
         dismissOverlayAfterShutterFlash()
@@ -700,7 +722,8 @@ public final class AppCoordinator: ObservableObject {
         guard !px.isNull, px.width >= 2, px.height >= 2,
               let cropped = cap.image.cropping(to: px) else { return }
         Haptics.confirm() // 轻快门反馈(无闪白:覆盖层还在,别打断)
-        shotPipeline.deliver(.init(image: cropped, pointSize: overlayRect.size, forcePNG: false),
+        shotPipeline.deliver(.init(image: cropped, pointSize: overlayRect.size, forcePNG: false,
+                                   originGlobal: cap.context.globalRect(fromOverlay: overlayRect)),
                              on: cap.context.screenFrame)
     }
 

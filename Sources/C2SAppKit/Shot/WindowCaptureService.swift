@@ -11,6 +11,9 @@ enum WindowCaptureService {
         let image: CGImage
         /// 点尺寸(含阴影边距;NSImage(size:) / 托盘缩略图用)。
         let pointSize: CGSize
+        /// 阴影合成的外扩边距(点;未合成 = .zero)。
+        /// F23 钉图「按窗口框对齐原位」要用它把 origin 反向外扩,否则内容整体偏 36pt。
+        let shadowInsets: NSEdgeInsets
     }
 
     /// 阴影参数(点;spec S2「固定 radius/offset/opacity 常量」)。
@@ -42,11 +45,19 @@ enum WindowCaptureService {
         guard includeShadow, let composed = composeShadow(on: image, scale: effectiveScale) else {
             return Output(image: image,
                           pointSize: CGSize(width: CGFloat(image.width) / effectiveScale,
-                                            height: CGFloat(image.height) / effectiveScale))
+                                            height: CGFloat(image.height) / effectiveScale),
+                          shadowInsets: NSEdgeInsets())
         }
+        // 与 composeShadow 的 margin 计算保持同源(点值 = 像素 margin / scale)
+        let blur = shadowBlur * effectiveScale
+        let marginX = ceil(blur * 1.5) / effectiveScale
+        let marginTop = ceil(blur * 1.5) / effectiveScale
+        let marginBottom = ceil(blur * 1.5 + abs(shadowOffsetY * effectiveScale)) / effectiveScale
         return Output(image: composed,
                       pointSize: CGSize(width: CGFloat(composed.width) / effectiveScale,
-                                        height: CGFloat(composed.height) / effectiveScale))
+                                        height: CGFloat(composed.height) / effectiveScale),
+                      shadowInsets: NSEdgeInsets(top: marginTop, left: marginX,
+                                                 bottom: marginBottom, right: marginX))
     }
 
     /// 无阴影透明位图 → 更大的透明画布 + CGContext.setShadow 合成投影
