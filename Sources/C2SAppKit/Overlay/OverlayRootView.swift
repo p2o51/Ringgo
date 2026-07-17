@@ -488,17 +488,19 @@ private struct StrokedBracketsShape: Shape {
 /// 悬停 = 提亮 + accent 微光,预告「点下去选整窗」。
 private struct WindowCornerGlyph: View {
     let hovered: Bool
-    /// 外接方框边长(角形的两臂各 ~12pt)。
-    static let size: CGFloat = 14
+    /// 外接方框边长(角形的两臂各 ~18pt)。v2.1(2026-07-17 用户反馈):
+    /// 14pt/2.5 线宽太细不明显 → 加大加粗;悬停描边换系统强调色。
+    static let size: CGFloat = 18
 
     var body: some View {
         BottomRightCornerShape()
-            .stroke(.white.opacity(hovered ? 0.95 : 0.55),
-                    style: StrokeStyle(lineWidth: 2.5, lineCap: .round, lineJoin: .round))
+            .stroke(hovered ? AnyShapeStyle(Color.accentColor)
+                            : AnyShapeStyle(.white.opacity(0.85)),
+                    style: StrokeStyle(lineWidth: 4, lineCap: .round, lineJoin: .round))
             .frame(width: Self.size, height: Self.size)
-            .shadow(color: hovered ? Color.accentColor.opacity(0.6) : .black.opacity(0.4),
-                    radius: hovered ? 6 : 2, y: 1)
-            .scaleEffect(hovered ? 1.18 : 1, anchor: .bottomTrailing)
+            .shadow(color: hovered ? Color.accentColor.opacity(0.65) : .black.opacity(0.5),
+                    radius: hovered ? 7 : 3, y: 1)
+            .scaleEffect(hovered ? 1.15 : 1, anchor: .bottomTrailing)
     }
 }
 
@@ -506,7 +508,7 @@ private struct WindowCornerGlyph: View {
 private struct BottomRightCornerShape: Shape {
     func path(in rect: CGRect) -> Path {
         let arm = rect.width
-        let r = min(6, arm * 0.45)
+        let r = min(8, arm * 0.45)
         var p = Path()
         p.move(to: CGPoint(x: rect.maxX, y: rect.maxY - arm))
         p.addLine(to: CGPoint(x: rect.maxX, y: rect.maxY - r))
