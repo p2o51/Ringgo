@@ -285,9 +285,9 @@ struct TrayRootView: View {
 
     private static let cardWidth: CGFloat = 192
     private static let cardHeight: CGFloat = 122
-    /// 平时紧凑 / 悬停扇开 的错位间距。
-    private static let idleOffset: CGFloat = 9
-    private static let fanOffset: CGFloat = 30
+    /// 平时紧凑 / 悬停扇开 的错位间距(v2.1 用户反馈:平时也要看得出层数)。
+    private static let idleOffset: CGFloat = 18
+    private static let fanOffset: CGFloat = 34
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     private var motionReduced: Bool { reduceEffects || reduceMotion }

@@ -133,8 +133,11 @@ private struct ScreenshotTab: View {
                     if settings.shotTrayAutoDismiss {
                         Picker(L10n.t("settings.shot.tray_dismiss_seconds", "收起延时"),
                                selection: $settings.shotTrayAutoDismissSeconds) {
-                            ForEach([3, 5, 10, 30], id: \.self) { seconds in
-                                Text(L10n.f("settings.shot.tray_seconds", "%d 秒", seconds)).tag(seconds)
+                            ForEach([5, 10, 30, 60, 300], id: \.self) { seconds in
+                                Text(seconds < 60
+                                     ? L10n.f("settings.shot.tray_seconds", "%d 秒", seconds)
+                                     : L10n.f("settings.shot.tray_minutes", "%d 分钟", seconds / 60))
+                                    .tag(seconds)
                             }
                         }
                         .frame(maxWidth: 220)

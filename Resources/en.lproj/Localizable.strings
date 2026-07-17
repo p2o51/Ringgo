@@ -204,6 +204,8 @@
 "settings.shot.tray_dismiss_seconds" = "Dismiss After";
 /* picker option: seconds */
 "settings.shot.tray_seconds" = "%d s";
+/* picker option: minutes (auto-dismiss long durations) */
+"settings.shot.tray_minutes" = "%d min";
 /* caption */
 "settings.shot.tray_dismiss_caption" = "Dismissing only hides the tray item; the screenshot stays on the clipboard and disk. Hovering pauses the timer.";
 /* settings window title */

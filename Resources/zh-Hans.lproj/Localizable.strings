@@ -204,6 +204,8 @@
 "settings.shot.tray_dismiss_seconds" = "收起延时";
 /* picker option: seconds */
 "settings.shot.tray_seconds" = "%d 秒";
+/* picker option: minutes (auto-dismiss long durations) */
+"settings.shot.tray_minutes" = "%d 分钟";
 /* caption */
 "settings.shot.tray_dismiss_caption" = "收起只是托盘项消失;截图仍在剪贴板与磁盘里。悬停托盘会暂停计时。";
 /* settings window title */

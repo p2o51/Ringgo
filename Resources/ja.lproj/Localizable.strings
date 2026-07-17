@@ -204,6 +204,8 @@
 "settings.shot.tray_dismiss_seconds" = "たたむまでの時間";
 /* picker option: seconds */
 "settings.shot.tray_seconds" = "%d 秒";
+/* picker option: minutes (auto-dismiss long durations) */
+"settings.shot.tray_minutes" = "%d 分";
 /* caption */
 "settings.shot.tray_dismiss_caption" = "たたんでもトレイから消えるだけで、スクリーンショットはクリップボードとディスクに残ります。ホバー中はタイマーが一時停止します。";
 /* settings window title */

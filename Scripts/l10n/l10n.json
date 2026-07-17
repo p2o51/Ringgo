@@ -112,6 +112,7 @@
     "settings.shot.tray_dismiss_toggle":{"zh-Hans": "自动收起托盘", "en": "Auto-dismiss tray", "ja": "トレイを自動的にたたむ", "ctx": "toggle"},
     "settings.shot.tray_dismiss_seconds":{"zh-Hans": "收起延时", "en": "Dismiss After", "ja": "たたむまでの時間", "ctx": "picker label"},
     "settings.shot.tray_seconds":  {"zh-Hans": "%d 秒", "en": "%d s", "ja": "%d 秒", "ctx": "picker option: seconds"},
+    "settings.shot.tray_minutes":  {"zh-Hans": "%d 分钟", "en": "%d min", "ja": "%d 分", "ctx": "picker option: minutes (auto-dismiss long durations)"},
     "settings.shot.tray_dismiss_caption":{"zh-Hans": "收起只是托盘项消失;截图仍在剪贴板与磁盘里。悬停托盘会暂停计时。", "en": "Dismissing only hides the tray item; the screenshot stays on the clipboard and disk. Hovering pauses the timer.", "ja": "たたんでもトレイから消えるだけで、スクリーンショットはクリップボードとディスクに残ります。ホバー中はタイマーが一時停止します。", "ctx": "caption"},
 
     "settings.window_title":       {"zh-Hans": "Ringgo 设置", "en": "Ringgo Settings", "ja": "Ringgo 設定", "ctx": "settings window title"},
