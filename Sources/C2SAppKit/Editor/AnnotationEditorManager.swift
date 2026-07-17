@@ -14,7 +14,7 @@ final class AnnotationEditorManager: NSObject {
     private weak var tray: QuickAccessTray?
     private let pinManager: PinManager
     /// S5 共享搜索面板(单实例,跟随最近发起请求的编辑器窗口停靠)。
-    private let searchPanel = EditorSearchPanelController()
+    private let searchPanel: EditorSearchPanelController
     private var windows: [UUID: EditorWindowBox] = [:]
 
     /// item 直接存进 box:脏关窗的「保存」不得回查托盘——编辑期间项可能已被
@@ -35,6 +35,8 @@ final class AnnotationEditorManager: NSObject {
         self.settings = settings
         self.tray = tray
         self.pinManager = pinManager
+        self.searchPanel = EditorSearchPanelController(
+            reduceEffects: { [weak settings] in settings?.reduceEffects ?? false })
     }
 
     // MARK: 打开 / 关闭
