@@ -488,15 +488,15 @@ private struct StrokedBracketsShape: Shape {
 /// 悬停 = 提亮 + accent 微光,预告「点下去选整窗」。
 private struct WindowCornerGlyph: View {
     let hovered: Bool
-    /// 外接方框边长(角形的两臂各 ~18pt)。v2.1(2026-07-17 用户反馈):
-    /// 14pt/2.5 线宽太细不明显 → 加大加粗;悬停描边换系统强调色。
-    static let size: CGFloat = 18
+    /// 外接方框边长。v2.2(2026-07-17 用户两轮反馈):14/2.5 → 18/4 仍嫌细,
+    /// 定格 24/12 —— 粗壮圆头厚角,不再儿戏;悬停描边系统强调色。
+    static let size: CGFloat = 24
 
     var body: some View {
         BottomRightCornerShape()
             .stroke(hovered ? AnyShapeStyle(Color.accentColor)
                             : AnyShapeStyle(.white.opacity(0.85)),
-                    style: StrokeStyle(lineWidth: 4, lineCap: .round, lineJoin: .round))
+                    style: StrokeStyle(lineWidth: 12, lineCap: .round, lineJoin: .round))
             .frame(width: Self.size, height: Self.size)
             .shadow(color: hovered ? Color.accentColor.opacity(0.65) : .black.opacity(0.5),
                     radius: hovered ? 7 : 3, y: 1)

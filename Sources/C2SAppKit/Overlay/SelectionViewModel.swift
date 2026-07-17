@@ -83,8 +83,8 @@ final class SelectionViewModel: ObservableObject {
     private let thinningDistance: CGFloat = 2
     private let tapRectSide: CGFloat = 160
     private let minRectSide: CGFloat = 40
-    /// F24 v2 角标命中半径(以角标锚点为圆心)。
-    private let windowHandleHitRadius: CGFloat = 16
+    /// F24 v2 角标命中半径(以角标锚点为圆心;v2.2 角标加大到 24/12,命中随之放宽)。
+    private let windowHandleHitRadius: CGFloat = 22
 
     /// OCR 尚未完成时落地的手势:记下原始意图,词框到达后再定夺
     /// (点在词上 → 选词;划过词 → 文本选择;否则矩形 → 图搜)。
