@@ -389,9 +389,9 @@ extension AnnotationEditorManager: NSWindowDelegate {
             return false // close() 自己收窗
         }
         let alert = NSAlert()
-        alert.messageText = L10n.t("editor.close_title", "有未交付的标注")
+        alert.messageText = L10n.t("editor.close_title", "标注还没保存")
         alert.informativeText = L10n.t("editor.close_body",
-                                       "「保存」= 按设置交付并关闭;「不保存」= 标注保留在托盘项里,下次点开继续。")
+                                       "保存:写进文件再关。不保存:标注留着,下次从托盘点开接着改。")
         alert.addButton(withTitle: L10n.t("editor.close_save", "保存"))
         alert.addButton(withTitle: L10n.t("editor.close_discard", "不保存"))
         alert.addButton(withTitle: L10n.t("common.cancel", "取消"))

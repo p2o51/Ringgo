@@ -141,9 +141,9 @@ public final class ShotPipeline {
     static func presentSaveError(_ error: Error, directory: URL) {
         NSApp.activate(ignoringOtherApps: true)
         let alert = NSAlert()
-        alert.messageText = L10n.t("alert.shot_save_failed_title", "截图未能保存到磁盘")
+        alert.messageText = L10n.t("alert.shot_save_failed_title", "截图没能保存")
         alert.informativeText = L10n.f("alert.shot_save_failed_body",
-                                       "写入 %1$@ 失败:%2$@\n截图仍在剪贴板与托盘里,不会丢失。",
+                                       "写入 %1$@ 失败:%2$@\n图还在剪贴板和托盘里。",
                                        directory.path, error.localizedDescription)
         alert.alertStyle = .warning
         // F24 📸 覆盖层不退:报错窗必须压在覆盖层(.screenSaver)与托盘(+1)之上,

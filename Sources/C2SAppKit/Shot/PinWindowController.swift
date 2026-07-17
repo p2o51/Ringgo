@@ -228,7 +228,7 @@ private struct PinView: View {
                     Button(L10n.t("pin.annotate", "标注…")) { onAnnotate() }
                 }
                 Button(L10n.t("pin.copy", "拷贝")) { onCopy() }
-                Button(L10n.t("pin.save", "保存到磁盘")) { onSave() }
+                Button(L10n.t("pin.save", "保存文件")) { onSave() }
                 Divider()
                 Button(L10n.t("pin.close", "关闭钉图")) { onClose() }
             }

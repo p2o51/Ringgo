@@ -45,9 +45,9 @@
 /* F20 bottom hint pill in screenshot overlay */
 "shot.hint" = "拖拽截取区域 · 点击截取窗口 · ⏎ 全屏 · Esc 取消";
 /* F20 alert title when writing the file fails */
-"alert.shot_save_failed_title" = "截图未能保存到磁盘";
+"alert.shot_save_failed_title" = "截图没能保存";
 /* F20 alert body; args = directory path, error */
-"alert.shot_save_failed_body" = "写入 %1$@ 失败:%2$@\n截图仍在剪贴板与托盘里,不会丢失。";
+"alert.shot_save_failed_body" = "写入 %1$@ 失败:%2$@\n图还在剪贴板和托盘里。";
 /* F20 rare failure when CGImageDestination cannot encode the shot */
 "error.shot_encode_failed" = "图像编码失败。";
 /* F24 mini-toolbar button: turn current selection into a full screenshot product (clipboard+tray+save), overlay stays */
@@ -61,7 +61,7 @@
 /* F21 tray card action tooltip (already saved) */
 "tray.reveal" = "在 Finder 中显示";
 /* F21 tray card × tooltip */
-"tray.remove" = "移除(不删除已保存文件)";
+"tray.remove" = "移除(文件不动)";
 /* F22 tray card ✏️ tooltip: open annotation editor */
 "tray.annotate" = "标注";
 /* F22 editor tool */
@@ -101,7 +101,7 @@
 /* F22 bottom bar button when cropRect set */
 "editor.crop_reset" = "取消裁剪";
 /* F22 bottom bar tooltip */
-"editor.copy" = "拷贝(压平)";
+"editor.copy" = "拷贝";
 /* F22 bottom bar tooltip */
 "editor.share" = "分享…";
 /* F22 bottom bar drag-out pill */
@@ -119,9 +119,9 @@
 /* F22 undo action name */
 "editor.undo.style" = "修改样式";
 /* F22 dirty-close alert title */
-"editor.close_title" = "有未交付的标注";
+"editor.close_title" = "标注还没保存";
 /* F22 dirty-close alert body (spec S4: discard keeps vector doc at runtime) */
-"editor.close_body" = "「保存」= 按设置交付并关闭;「不保存」= 标注保留在托盘项里,下次点开继续。";
+"editor.close_body" = "保存:写进文件再关。不保存:标注留着,下次从托盘点开接着改。";
 /* F22 dirty-close alert button */
 "editor.close_save" = "保存";
 /* F23 editor bottom bar tooltip */
@@ -134,10 +134,6 @@
 "editor.ai.placeholder" = "问点什么,图和问题一起发出去…";
 /* S5 editor search panel window title (hidden but a11y) */
 "editor.panel.title" = "搜索";
-/* S5 editor search panel pill placeholder (same-session multisearch) */
-"editor.panel.placeholder" = "接着追问…";
-/* S5 editor search panel empty state */
-"editor.panel.empty" = "从编辑器发起翻译 / 提问 / 可视化";
 /* F23 pin window × / context menu */
 "pin.close" = "关闭钉图";
 /* F23 pin context menu: open editor */
@@ -145,7 +141,7 @@
 /* F23 pin context menu */
 "pin.copy" = "拷贝";
 /* F23 pin context menu */
-"pin.save" = "保存到磁盘";
+"pin.save" = "保存文件";
 /* F23 tray card 📌 tooltip */
 "tray.pin" = "钉在屏幕上";
 /* F22 dirty-close alert button */
@@ -161,15 +157,15 @@
 /* reset button tooltip */
 "settings.shot.hotkey_reset" = "还原为 ⌘⇧X";
 /* validation when shot hotkey equals search hotkey */
-"settings.shot.hotkey_conflict" = "与圈选热键相同,请换一个组合。";
+"settings.shot.hotkey_conflict" = "和圈选热键撞了,换一个。";
 /* validation when search hotkey equals shot hotkey */
-"settings.shot.hotkey_conflict_reverse" = "与截图热键相同,请换一个组合。";
+"settings.shot.hotkey_conflict_reverse" = "和截图热键撞了,换一个。";
 /* settings section header */
 "settings.shot.section.output" = "产物";
 /* toggle */
 "settings.shot.copy_toggle" = "拍后复制到剪贴板";
 /* toggle caption */
-"settings.shot.copy_caption" = "以 PNG + TIFF 双格式写入,兼容各类应用粘贴。";
+"settings.shot.copy_caption" = "PNG、TIFF 各写一份,贴到老应用里也认。";
 /* toggle */
 "settings.shot.save_toggle" = "自动保存到磁盘";
 /* button: reset save directory */
@@ -177,7 +173,7 @@
 /* button: pick save directory */
 "settings.shot.dir_choose" = "选择…";
 /* caption when chosen dir is TCC-protected (spec §7) */
-"settings.shot.dir_tcc_caption" = "桌面/文稿/下载受系统保护,首次写入会弹出授权窗口。";
+"settings.shot.dir_tcc_caption" = "存到桌面/文稿/下载的话,系统第一次会弹窗要权限。";
 /* text field label */
 "settings.shot.template_label" = "文件名模板";
 /* template caption */
@@ -185,7 +181,7 @@
 /* picker label */
 "settings.shot.format_label" = "图片格式";
 /* picker caption */
-"settings.shot.format_caption" = "窗口截图始终使用 PNG 以保留透明圆角。";
+"settings.shot.format_caption" = "窗口截图一律 PNG,不然圆角就不透明了。";
 /* toggle */
 "settings.shot.shadow_toggle" = "窗口截图带阴影";
 /* toggle */
@@ -207,7 +203,7 @@
 /* picker option: minutes (auto-dismiss long durations) */
 "settings.shot.tray_minutes" = "%d 分钟";
 /* caption */
-"settings.shot.tray_dismiss_caption" = "收起只是托盘项消失;截图仍在剪贴板与磁盘里。悬停托盘会暂停计时。";
+"settings.shot.tray_dismiss_caption" = "收起不删图:文件和剪贴板里的都还在。鼠标放在托盘上时不计时。";
 /* settings window title */
 "settings.window_title" = "Ringgo 设置";
 /* settings tab */

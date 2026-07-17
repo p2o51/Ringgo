@@ -407,7 +407,9 @@ private struct TrayCardView: View {
                     RoundedRectangle(cornerRadius: 10, style: .continuous)
                         .strokeBorder(.white.opacity(0.25), lineWidth: 0.5)
                 )
-                .shadow(color: .black.opacity(0.35), radius: 10, y: 4)
+                // 双层软投影(v2.2 用户反馈「阴影很硬」):贴地一层浅的 + 弥散一层大的
+                .shadow(color: .black.opacity(0.10), radius: 3, y: 1)
+                .shadow(color: .black.opacity(0.16), radius: 18, y: 8)
             if interactive {
                 TrayDragSurface(item: item, tray: tray, actionsVisible: hovering)
             }
@@ -475,7 +477,7 @@ private struct TrayCardView: View {
                     .background(.regularMaterial, in: Circle())
             }
             .buttonStyle(.plain)
-            .help(L10n.t("tray.remove", "移除(不删除已保存文件)"))
+            .help(L10n.t("tray.remove", "移除(文件不动)"))
         }
     }
 }

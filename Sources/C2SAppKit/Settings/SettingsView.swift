@@ -51,7 +51,7 @@ private struct ScreenshotTab: View {
                     resetHelp: L10n.t("settings.shot.hotkey_reset", "还原为 ⌘⇧X"),
                     conflictCheck: { keyCode, modifiers in
                         (keyCode == settings.hotkeyKeyCode && modifiers == settings.hotkeyModifiers)
-                            ? L10n.t("settings.shot.hotkey_conflict", "与圈选热键相同,请换一个组合。")
+                            ? L10n.t("settings.shot.hotkey_conflict", "和圈选热键撞了,换一个。")
                             : nil
                     })
             }
@@ -60,7 +60,7 @@ private struct ScreenshotTab: View {
                 VStack(alignment: .leading, spacing: 3) {
                     Toggle(L10n.t("settings.shot.copy_toggle", "拍后复制到剪贴板"),
                            isOn: $settings.shotCopyToClipboard)
-                    Text(L10n.t("settings.shot.copy_caption", "以 PNG + TIFF 双格式写入,兼容各类应用粘贴。"))
+                    Text(L10n.t("settings.shot.copy_caption", "PNG、TIFF 各写一份,贴到老应用里也认。"))
                         .settingsCaption()
                 }
 
@@ -86,7 +86,7 @@ private struct ScreenshotTab: View {
                     .disabled(!settings.shotAutoSave)
                     if isTCCProtectedDirectory {
                         Text(L10n.t("settings.shot.dir_tcc_caption",
-                                    "桌面/文稿/下载受系统保护,首次写入会弹出授权窗口。"))
+                                    "存到桌面/文稿/下载的话,系统第一次会弹窗要权限。"))
                             .settingsCaption()
                     }
                 }
@@ -110,7 +110,7 @@ private struct ScreenshotTab: View {
                     }
                     .pickerStyle(.segmented)
                     .frame(maxWidth: 220)
-                    Text(L10n.t("settings.shot.format_caption", "窗口截图始终使用 PNG 以保留透明圆角。"))
+                    Text(L10n.t("settings.shot.format_caption", "窗口截图一律 PNG,不然圆角就不透明了。"))
                         .settingsCaption()
                 }
 
@@ -143,7 +143,7 @@ private struct ScreenshotTab: View {
                         .frame(maxWidth: 220)
                     }
                     Text(L10n.t("settings.shot.tray_dismiss_caption",
-                                "收起只是托盘项消失;截图仍在剪贴板与磁盘里。悬停托盘会暂停计时。"))
+                                "收起不删图:文件和剪贴板里的都还在。鼠标放在托盘上时不计时。"))
                         .settingsCaption()
                 }
             }
@@ -197,7 +197,7 @@ private struct GeneralTab: View {
                     resetHelp: L10n.t("hotkey.reset_help", "还原为 ⌘⇧S"),
                     conflictCheck: { keyCode, modifiers in
                         (keyCode == settings.shotHotkeyKeyCode && modifiers == settings.shotHotkeyModifiers)
-                            ? L10n.t("settings.shot.hotkey_conflict_reverse", "与截图热键相同,请换一个组合。")
+                            ? L10n.t("settings.shot.hotkey_conflict_reverse", "和截图热键撞了,换一个。")
                             : nil
                     })
             }

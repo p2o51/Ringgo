@@ -47,7 +47,7 @@
 /* F20 alert title when writing the file fails */
 "alert.shot_save_failed_title" = "Couldn't Save Screenshot";
 /* F20 alert body; args = directory path, error */
-"alert.shot_save_failed_body" = "Couldn't write to %1$@: %2$@\nThe screenshot is still on the clipboard and in the tray — nothing is lost.";
+"alert.shot_save_failed_body" = "Couldn't write to %1$@: %2$@\nThe shot is still on the clipboard and in the tray.";
 /* F20 rare failure when CGImageDestination cannot encode the shot */
 "error.shot_encode_failed" = "Image encoding failed.";
 /* F24 mini-toolbar button: turn current selection into a full screenshot product (clipboard+tray+save), overlay stays */
@@ -61,7 +61,7 @@
 /* F21 tray card action tooltip (already saved) */
 "tray.reveal" = "Reveal in Finder";
 /* F21 tray card × tooltip */
-"tray.remove" = "Remove (keeps saved file)";
+"tray.remove" = "Remove (file stays)";
 /* F22 tray card ✏️ tooltip: open annotation editor */
 "tray.annotate" = "Annotate";
 /* F22 editor tool */
@@ -101,7 +101,7 @@
 /* F22 bottom bar button when cropRect set */
 "editor.crop_reset" = "Clear Crop";
 /* F22 bottom bar tooltip */
-"editor.copy" = "Copy (flattened)";
+"editor.copy" = "Copy";
 /* F22 bottom bar tooltip */
 "editor.share" = "Share…";
 /* F22 bottom bar drag-out pill */
@@ -119,9 +119,9 @@
 /* F22 undo action name */
 "editor.undo.style" = "Change Style";
 /* F22 dirty-close alert title */
-"editor.close_title" = "Unsaved Annotations";
+"editor.close_title" = "Annotations Not Saved";
 /* F22 dirty-close alert body (spec S4: discard keeps vector doc at runtime) */
-"editor.close_body" = "\"Save\" delivers per your settings and closes. \"Don't Save\" keeps the annotations on the tray item — reopen to continue.";
+"editor.close_body" = "Save writes the file and closes. Don't Save keeps the annotations — open it from the tray to continue.";
 /* F22 dirty-close alert button */
 "editor.close_save" = "Save";
 /* F23 editor bottom bar tooltip */
@@ -134,10 +134,6 @@
 "editor.ai.placeholder" = "Ask anything — sent together with the image…";
 /* S5 editor search panel window title (hidden but a11y) */
 "editor.panel.title" = "Search";
-/* S5 editor search panel pill placeholder (same-session multisearch) */
-"editor.panel.placeholder" = "Ask a follow-up…";
-/* S5 editor search panel empty state */
-"editor.panel.empty" = "Start a translate / ask / visualize from the editor";
 /* F23 pin window × / context menu */
 "pin.close" = "Close Pin";
 /* F23 pin context menu: open editor */
@@ -145,7 +141,7 @@
 /* F23 pin context menu */
 "pin.copy" = "Copy";
 /* F23 pin context menu */
-"pin.save" = "Save to Disk";
+"pin.save" = "Save File";
 /* F23 tray card 📌 tooltip */
 "tray.pin" = "Pin to Screen";
 /* F22 dirty-close alert button */
@@ -161,15 +157,15 @@
 /* reset button tooltip */
 "settings.shot.hotkey_reset" = "Reset to ⌘⇧X";
 /* validation when shot hotkey equals search hotkey */
-"settings.shot.hotkey_conflict" = "Same as the Circle to Search hotkey — pick a different combo.";
+"settings.shot.hotkey_conflict" = "Clashes with the Circle to Search hotkey — pick another.";
 /* validation when search hotkey equals shot hotkey */
-"settings.shot.hotkey_conflict_reverse" = "Same as the screenshot hotkey — pick a different combo.";
+"settings.shot.hotkey_conflict_reverse" = "Clashes with the screenshot hotkey — pick another.";
 /* settings section header */
 "settings.shot.section.output" = "Output";
 /* toggle */
 "settings.shot.copy_toggle" = "Copy to clipboard after capture";
 /* toggle caption */
-"settings.shot.copy_caption" = "Writes both PNG and TIFF so pasting works everywhere.";
+"settings.shot.copy_caption" = "Writes both PNG and TIFF, so pasting works even in older apps.";
 /* toggle */
 "settings.shot.save_toggle" = "Save to disk automatically";
 /* button: reset save directory */
@@ -177,7 +173,7 @@
 /* button: pick save directory */
 "settings.shot.dir_choose" = "Choose…";
 /* caption when chosen dir is TCC-protected (spec §7) */
-"settings.shot.dir_tcc_caption" = "Desktop, Documents and Downloads are system-protected; the first write triggers a permission prompt.";
+"settings.shot.dir_tcc_caption" = "Saving to Desktop, Documents or Downloads makes the system ask for permission the first time.";
 /* text field label */
 "settings.shot.template_label" = "Filename Template";
 /* template caption */
@@ -185,7 +181,7 @@
 /* picker label */
 "settings.shot.format_label" = "Image Format";
 /* picker caption */
-"settings.shot.format_caption" = "Window captures always use PNG to keep transparent rounded corners.";
+"settings.shot.format_caption" = "Window captures are always PNG — otherwise the rounded corners lose transparency.";
 /* toggle */
 "settings.shot.shadow_toggle" = "Window captures include shadow";
 /* toggle */
@@ -207,7 +203,7 @@
 /* picker option: minutes (auto-dismiss long durations) */
 "settings.shot.tray_minutes" = "%d min";
 /* caption */
-"settings.shot.tray_dismiss_caption" = "Dismissing only hides the tray item; the screenshot stays on the clipboard and disk. Hovering pauses the timer.";
+"settings.shot.tray_dismiss_caption" = "Dismissing never deletes anything — the file and clipboard copy stay. The timer pauses while you hover the tray.";
 /* settings window title */
 "settings.window_title" = "Ringgo Settings";
 /* settings tab */

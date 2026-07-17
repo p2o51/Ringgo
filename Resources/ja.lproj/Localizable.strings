@@ -47,7 +47,7 @@
 /* F20 alert title when writing the file fails */
 "alert.shot_save_failed_title" = "スクリーンショットを保存できませんでした";
 /* F20 alert body; args = directory path, error */
-"alert.shot_save_failed_body" = "%1$@ への書き込みに失敗しました:%2$@\nスクリーンショットはクリップボードとトレイに残っています。";
+"alert.shot_save_failed_body" = "%1$@ に書き込めませんでした:%2$@\n画像はクリップボードとトレイに残っています。";
 /* F20 rare failure when CGImageDestination cannot encode the shot */
 "error.shot_encode_failed" = "画像のエンコードに失敗しました。";
 /* F24 mini-toolbar button: turn current selection into a full screenshot product (clipboard+tray+save), overlay stays */
@@ -61,7 +61,7 @@
 /* F21 tray card action tooltip (already saved) */
 "tray.reveal" = "Finder に表示";
 /* F21 tray card × tooltip */
-"tray.remove" = "取り除く(保存済みファイルは残ります)";
+"tray.remove" = "取り除く(ファイルはそのまま)";
 /* F22 tray card ✏️ tooltip: open annotation editor */
 "tray.annotate" = "注釈";
 /* F22 editor tool */
@@ -101,7 +101,7 @@
 /* F22 bottom bar button when cropRect set */
 "editor.crop_reset" = "切り取りを解除";
 /* F22 bottom bar tooltip */
-"editor.copy" = "コピー(統合)";
+"editor.copy" = "コピー";
 /* F22 bottom bar tooltip */
 "editor.share" = "共有…";
 /* F22 bottom bar drag-out pill */
@@ -119,9 +119,9 @@
 /* F22 undo action name */
 "editor.undo.style" = "スタイルを変更";
 /* F22 dirty-close alert title */
-"editor.close_title" = "未保存の注釈があります";
+"editor.close_title" = "注釈が未保存です";
 /* F22 dirty-close alert body (spec S4: discard keeps vector doc at runtime) */
-"editor.close_body" = "「保存」は設定に従って書き出して閉じます。「保存しない」でも注釈はトレイに残り、次回開いたときに続きから編集できます。";
+"editor.close_body" = "保存:ファイルに書き込んで閉じます。保存しない:注釈は残り、トレイから開けば続きから編集できます。";
 /* F22 dirty-close alert button */
 "editor.close_save" = "保存";
 /* F23 editor bottom bar tooltip */
@@ -134,10 +134,6 @@
 "editor.ai.placeholder" = "質問を入力 — 画像と一緒に送信されます…";
 /* S5 editor search panel window title (hidden but a11y) */
 "editor.panel.title" = "検索";
-/* S5 editor search panel pill placeholder (same-session multisearch) */
-"editor.panel.placeholder" = "続けて質問…";
-/* S5 editor search panel empty state */
-"editor.panel.empty" = "エディタから翻訳・質問・可視化を実行";
 /* F23 pin window × / context menu */
 "pin.close" = "ピンを閉じる";
 /* F23 pin context menu: open editor */
@@ -145,7 +141,7 @@
 /* F23 pin context menu */
 "pin.copy" = "コピー";
 /* F23 pin context menu */
-"pin.save" = "ディスクに保存";
+"pin.save" = "ファイルに保存";
 /* F23 tray card 📌 tooltip */
 "tray.pin" = "画面にピン留め";
 /* F22 dirty-close alert button */
@@ -161,15 +157,15 @@
 /* reset button tooltip */
 "settings.shot.hotkey_reset" = "⌘⇧X に戻す";
 /* validation when shot hotkey equals search hotkey */
-"settings.shot.hotkey_conflict" = "かこって検索のホットキーと同じです。別の組み合わせを選んでください。";
+"settings.shot.hotkey_conflict" = "かこって検索のホットキーと重複しています。別のキーを。";
 /* validation when search hotkey equals shot hotkey */
-"settings.shot.hotkey_conflict_reverse" = "スクリーンショットのホットキーと同じです。別の組み合わせを選んでください。";
+"settings.shot.hotkey_conflict_reverse" = "スクリーンショットのホットキーと重複しています。別のキーを。";
 /* settings section header */
 "settings.shot.section.output" = "出力";
 /* toggle */
 "settings.shot.copy_toggle" = "撮影後にクリップボードへコピー";
 /* toggle caption */
-"settings.shot.copy_caption" = "PNG と TIFF の両形式で書き込み、どのアプリにも貼り付けられます。";
+"settings.shot.copy_caption" = "PNG と TIFF を両方書き込むので、古いアプリでも貼り付けられます。";
 /* toggle */
 "settings.shot.save_toggle" = "自動的にディスクへ保存";
 /* button: reset save directory */
@@ -177,7 +173,7 @@
 /* button: pick save directory */
 "settings.shot.dir_choose" = "選択…";
 /* caption when chosen dir is TCC-protected (spec §7) */
-"settings.shot.dir_tcc_caption" = "デスクトップ・書類・ダウンロードはシステム保護されており、初回書き込み時に許可を求められます。";
+"settings.shot.dir_tcc_caption" = "デスクトップ・書類・ダウンロードに保存する場合、初回はシステムが許可を求めます。";
 /* text field label */
 "settings.shot.template_label" = "ファイル名テンプレート";
 /* template caption */
@@ -185,7 +181,7 @@
 /* picker label */
 "settings.shot.format_label" = "画像形式";
 /* picker caption */
-"settings.shot.format_caption" = "ウインドウ撮影は透明な角丸を保つため常に PNG を使用します。";
+"settings.shot.format_caption" = "ウインドウ撮影は常に PNG。でないと角丸の透明が失われます。";
 /* toggle */
 "settings.shot.shadow_toggle" = "ウインドウ撮影に影を付ける";
 /* toggle */
@@ -207,7 +203,7 @@
 /* picker option: minutes (auto-dismiss long durations) */
 "settings.shot.tray_minutes" = "%d 分";
 /* caption */
-"settings.shot.tray_dismiss_caption" = "たたんでもトレイから消えるだけで、スクリーンショットはクリップボードとディスクに残ります。ホバー中はタイマーが一時停止します。";
+"settings.shot.tray_dismiss_caption" = "たたんでも削除はされません。ファイルもクリップボードも残ります。トレイにカーソルを置くと一時停止。";
 /* settings window title */
 "settings.window_title" = "Ringgo 設定";
 /* settings tab */

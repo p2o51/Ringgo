@@ -574,7 +574,7 @@ struct EditorRootView: View {
                 onCopy()
             } label: { Image(systemName: "doc.on.doc") }
                 .buttonStyle(.borderless)
-                .help(L10n.t("editor.copy", "拷贝(压平)"))
+                .help(L10n.t("editor.copy", "拷贝"))
         }
         .padding(.horizontal, 12)
         .padding(.vertical, 7)
