@@ -48,8 +48,15 @@ public struct WindowCornerHandle: Sendable, Equatable {
 }
 
 public enum WindowCornerHandles {
-    /// 计算可见角标:`windows` front-to-back;逐窗裁进视口、右下角内缩 inset;
-    /// 角标命中区(hitSize 方块)与任何**更前**窗口的 frame 相交 = 被遮挡,剔除。
+    /// 「够可见」门槛:窗口本体的可见占比低于它就不给角标。
+    /// 2026-07-17 Ghostty 幽灵角标实测:窗口 97% 被盖住、只在别的窗口底边与
+    /// Dock 之间露一条细缝时,「角没被挡」仍成立,角标看起来凭空浮着——
+    /// 用户根本认不出那条缝属于谁。
+    static let minVisibleFraction: CGFloat = 0.12
+
+    /// 计算可见角标:`windows` front-to-back;逐窗裁进视口、右下角内缩 inset。
+    /// 两道门槛:① 角标命中区(hitSize 方块)不被任何**更前**窗口盖住;
+    /// ② 窗口本体可见占比 ≥ minVisibleFraction(8×6 网格采样)。
     public static func visible(in windows: [PickableWindow],
                                viewport: CGSize,
                                inset: CGFloat = 10,
@@ -63,11 +70,31 @@ public enum WindowCornerHandles {
             let corner = CGPoint(x: clipped.maxX - inset, y: clipped.maxY - inset)
             let hitRect = CGRect(x: corner.x - hitSize / 2, y: corner.y - hitSize / 2,
                                  width: hitSize, height: hitSize)
-            let occluded = windows[..<index].contains { $0.frame.intersects(hitRect) }
-            guard !occluded else { continue }
+            let front = windows[..<index]
+            guard !front.contains(where: { $0.frame.intersects(hitRect) }) else { continue }
+            guard visibleFraction(of: clipped, front: front) >= Self.minVisibleFraction
+            else { continue }
             result.append(WindowCornerHandle(windowID: window.windowID,
                                              frame: clipped, corner: corner))
         }
         return result
+    }
+
+    /// 可见占比近似:8×6 网格样点,不落在任何更前窗口内的算可见。
+    /// 精确解要做矩形并集裁剪,采样对「残条 vs 半露」的分辨绰绰有余。
+    static func visibleFraction(of rect: CGRect, front: ArraySlice<PickableWindow>) -> CGFloat {
+        let cols = 8, rows = 6
+        guard rect.width > 0, rect.height > 0 else { return 0 }
+        var visibleCount = 0
+        for i in 0..<cols {
+            for j in 0..<rows {
+                let p = CGPoint(x: rect.minX + rect.width * (CGFloat(i) + 0.5) / CGFloat(cols),
+                                y: rect.minY + rect.height * (CGFloat(j) + 0.5) / CGFloat(rows))
+                if !front.contains(where: { $0.frame.contains(p) }) {
+                    visibleCount += 1
+                }
+            }
+        }
+        return CGFloat(visibleCount) / CGFloat(cols * rows)
     }
 }

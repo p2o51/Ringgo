@@ -184,7 +184,7 @@ struct OverlayRootView: View {
     // MARK: - 可调矩形(2026-07-03 参照原版裁剪框重设计,ui-style §4.3):
     //          白色圆角四角括号 + 光谱辉光环(品牌时刻)+ 框外加重压暗聚焦
 
-    private static let spectrum: [Color] = [
+    fileprivate static let spectrum: [Color] = [
         Color(red: 0.259, green: 0.522, blue: 0.957),  // Blue
         Color(red: 0.918, green: 0.263, blue: 0.208),  // Red
         Color(red: 0.984, green: 0.737, blue: 0.020),  // Yellow
@@ -292,7 +292,8 @@ struct OverlayRootView: View {
                     .transition(.opacity)
             }
             ForEach(viewModel.displayedWindowHandles, id: \.windowID) { handle in
-                WindowCornerGlyph(hovered: handle.windowID == hoveredID)
+                WindowCornerGlyph(hovered: handle.windowID == hoveredID,
+                                  motionReduced: motionReduced)
                     .offset(x: handle.corner.x - WindowCornerGlyph.size,
                             y: handle.corner.y - WindowCornerGlyph.size)
                     .transition(.opacity)
@@ -488,19 +489,66 @@ private struct StrokedBracketsShape: Shape {
 /// 悬停 = 提亮 + accent 微光,预告「点下去选整窗」。
 private struct WindowCornerGlyph: View {
     let hovered: Bool
-    /// 外接方框边长。v2.2(2026-07-17 用户两轮反馈):14/2.5 → 18/4 仍嫌细,
-    /// 定格 24/12 —— 粗壮圆头厚角,不再儿戏;悬停描边系统强调色。
-    static let size: CGFloat = 24
+    let motionReduced: Bool
+    /// 外接方框边长。v2.3(2026-07-17 用户三轮调参):14/2.5 太细 → 24/12 太粗
+    /// → 定格 22/7,分量在、不臃肿;悬停描边系统强调色。
+    static let size: CGFloat = 22
 
     var body: some View {
+        // v2.5(用户拍板):与选区四角括号(glassBrackets)完全同款材质——
+        // 粗臂轮廓面 + Liquid Glass 本体(macOS 26+;旧系统回退薄材质)+
+        // hairline 白描边 + 极轻投影;悬停 = 玻璃上叠强调色。
+        // v2.6/v2.7:玻璃后垫「光谱辉光」(F14 语汇,spectrumRing 同款角向流转),
+        // 呼吸 = 整枚角标缓慢变大变小 + 辉光同步明暗(锚在右下角,角尖不漂移);
+        // 30fps 节流(全窗多枚常驻);减弱动态 → 静态不呼吸。
+        if motionReduced {
+            glyph(time: nil)
+        } else {
+            TimelineView(.animation(minimumInterval: 1.0 / 30.0)) { ctx in
+                glyph(time: ctx.date.timeIntervalSinceReferenceDate)
+            }
+        }
+    }
+
+    private func glyph(time: TimeInterval?) -> some View {
+        let stroked = StrokedCornerShape(lineWidth: 7)
+        let glow = StrokedCornerShape(lineWidth: 10)
+        // 呼吸:±6%,~3.9s 一循环,与辉光明暗同相;悬停时停呼吸、定格放大(命中稳定)
+        let breathe = time.map { 1 + 0.06 * sin($0 * 1.6) } ?? 1
+        let glowAngle = Angle.degrees(((time ?? 0) * 30).truncatingRemainder(dividingBy: 360))
+        let glowOpacity = time.map { 0.5 + 0.22 * sin($0 * 1.6) } ?? 0.4
+        return ZStack {
+            glow.fill(AngularGradient(gradient: Gradient(colors: OverlayRootView.spectrum),
+                                      center: .center, angle: glowAngle))
+                .blur(radius: 6)
+                .opacity(glowOpacity)
+            Group {
+                if #available(macOS 26.0, *) {
+                    Color.clear.glassEffect(.regular, in: stroked)
+                } else {
+                    stroked.fill(.ultraThinMaterial)
+                }
+            }
+            if hovered {
+                stroked.fill(Color.accentColor.opacity(0.8))
+            }
+        }
+        .overlay(stroked.stroke(Color.white.opacity(hovered ? 0.7 : 0.45), lineWidth: 0.75))
+        .frame(width: Self.size, height: Self.size)
+        .shadow(color: hovered ? Color.accentColor.opacity(0.6) : .black.opacity(0.28),
+                radius: hovered ? 7 : 3, y: 1)
+        .scaleEffect(hovered ? 1.15 : breathe, anchor: .bottomTrailing)
+    }
+}
+
+/// 角标的描边轮廓面(粗臂圆头):单角 L 形转闭合形状,供玻璃填充(同 StrokedBracketsShape)。
+private struct StrokedCornerShape: Shape {
+    let lineWidth: CGFloat
+
+    func path(in r: CGRect) -> Path {
         BottomRightCornerShape()
-            .stroke(hovered ? AnyShapeStyle(Color.accentColor)
-                            : AnyShapeStyle(.white.opacity(0.85)),
-                    style: StrokeStyle(lineWidth: 12, lineCap: .round, lineJoin: .round))
-            .frame(width: Self.size, height: Self.size)
-            .shadow(color: hovered ? Color.accentColor.opacity(0.65) : .black.opacity(0.5),
-                    radius: hovered ? 7 : 3, y: 1)
-            .scaleEffect(hovered ? 1.15 : 1, anchor: .bottomTrailing)
+            .path(in: r)
+            .strokedPath(StrokeStyle(lineWidth: lineWidth, lineCap: .round, lineJoin: .round))
     }
 }
 

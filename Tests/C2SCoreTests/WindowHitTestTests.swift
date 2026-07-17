@@ -69,4 +69,24 @@ final class WindowHitTestTests: XCTestCase {
                                                   viewport: CGSize(width: 1600, height: 1000)).isEmpty,
                       "过小窗口(< 60×44)不给角标")
     }
+
+    func testSliverWindowGetsNoHandle() {
+        // 2026-07-17 Ghostty 幽灵角标实测还原:后窗只比前窗高出一条底边细缝,
+        // 角「没被挡」但窗口本体 96% 不可见 → 不给角标
+        let front = window(1, CGRect(x: 0, y: 33, width: 1728, height: 974))     // Claude
+        let back = window(2, CGRect(x: 361, y: 78, width: 1038, height: 974))    // Ghostty,底边多露 45pt
+        let handles = WindowCornerHandles.visible(in: [front, back],
+                                                  viewport: CGSize(width: 1728, height: 1117))
+        XCTAssertEqual(handles.map(\.windowID), [1],
+                       "只剩残条的窗口不给角标——用户认不出那条缝属于谁")
+    }
+
+    func testHalfVisibleWindowKeepsHandle() {
+        // 半露的窗口(可见 ~50%)角又没被挡 → 正常给角标
+        let front = window(1, CGRect(x: 0, y: 0, width: 500, height: 800))
+        let back = window(2, CGRect(x: 300, y: 100, width: 700, height: 600))
+        let handles = WindowCornerHandles.visible(in: [front, back],
+                                                  viewport: CGSize(width: 1600, height: 1000))
+        XCTAssertEqual(handles.map(\.windowID), [1, 2])
+    }
 }
