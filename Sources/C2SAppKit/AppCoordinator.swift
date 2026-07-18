@@ -38,6 +38,7 @@ public final class AppCoordinator: ObservableObject {
     private var previousApp: NSRunningApplication?
     private var ocrTask: Task<Void, Never>?
     private var barcodeTask: Task<Void, Never>?
+    private var lensPreparationTask: Task<Void, Never>?
     private var speculativeCapture: Task<CaptureResult, Error>?
     private var settingsSink: AnyCancellable?
     private var workspaceSinks: Set<AnyCancellable> = []
@@ -438,8 +439,14 @@ public final class AppCoordinator: ObservableObject {
         guard phase == .overlayActive else { return }
         ocrTask?.cancel()
         ocrTask = nil
+        if let image = currentCapture?.image {
+            let ocr = self.ocr
+            Task { await ocr.clearCache(for: image) }
+        }
         barcodeTask?.cancel()
         barcodeTask = nil
+        lensPreparationTask?.cancel()
+        lensPreparationTask = nil
         // 只放引用不 cancel:shootWindow 已捕获本地引用,取消会把实抓打断成回退路径
         shotSCWindowsTask = nil
         currentCapture = nil
@@ -461,6 +468,9 @@ public final class AppCoordinator: ObservableObject {
         let q = text.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !q.isEmpty else { return }
         lastTextQuery = q
+        lensPreparationTask?.cancel()
+        lensPreparationTask = nil
+        lastImageSearchRect = nil
         lastLensThumbnail = nil
         pendingLensPrompt = nil
         lensSessionURL = nil
@@ -567,7 +577,10 @@ public final class AppCoordinator: ObservableObject {
     /// multisearch;未就绪(上传还在飞)→ 挂起,handleLensPageURL 就绪后自动发出。
     private func fireLensPrompt(_ query: String, pillText: String?,
                                 chip: QueryModeChip?, aiMode: Bool) {
-        guard lastLensThumbnail != nil else { return }
+        // 后台载荷准备的几十毫秒内缩略图可能尚未就绪；仍记录用户意图，
+        // 等 vsrid 到达后自动续发，不能让一次快速点击静默丢失。
+        guard lastLensThumbnail != nil || lastImageSearchRect != nil
+                || lensPreparationTask != nil else { return }
         if let base = lensSessionURL,
            let url = SearchURLBuilder.lensMultisearch(currentResultURL: base,
                                                       text: query, aiMode: aiMode) {
@@ -630,23 +643,50 @@ public final class AppCoordinator: ObservableObject {
         promptMode = nil
         lensSessionURL = nil // 新上传 = 新会话,旧 vsrid 作废(防可视化/编辑挂错图)
         lastImageSearchRect = overlayRect
+        lastLensThumbnail = nil
         // F9 二维码检测(纯增量,与下面的 Lens 图搜互不影响)
         detectBarcode(in: cropped, forRect: overlayRect)
-        // 药丸缩略图 = 圈出的图(查询上下文与文字 query 对等)
-        lastLensThumbnail = LensService.downscaled(cropped, maxDimension: 240)
         lensAttempt += 1
-        do {
-            // 上传发生在面板 WebView 会话内(表单 POST 导航),与结果展示同会话
-            let payload = try search.lensUploadPayload(for: cropped, attempt: lensAttempt)
-            overlay.showResult(.lensUpload(payload), query: nil, queryImage: lastLensThumbnail)
-        } catch {
-            // 原生错误卡 + 重试;绝不拿错误串去搜(features §8)
-            let message = (error as? LocalizedError)?.errorDescription
-                ?? L10n.t("error.image_search_failed", "图像搜索失败,请重试。")
-            overlay.showResult(.error(message: message, retry: { [weak self] in
-                self?.performImageSearch(overlayRect: overlayRect)
-            }, login: nil), query: nil, queryImage: lastLensThumbnail)
+        let attempt = lensAttempt
+        lensPreparationTask?.cancel()
+        overlay.showResult(.loading(query: nil), query: nil)
+        lensPreparationTask = Task.detached(priority: .userInitiated) { [weak self] in
+            let thumbnail = LensService.downscaled(cropped, maxDimension: 240)
+            do {
+                // 降采样/JPEG/Base64/HTML 全部离开 MainActor；上传仍在同一 WKWebView 会话。
+                let payload = try LensService().uploadPayload(for: cropped, attempt: attempt)
+                guard !Task.isCancelled else { return }
+                await self?.finishImageSearchPreparation(payload: payload,
+                                                         thumbnail: thumbnail,
+                                                         rect: overlayRect,
+                                                         attempt: attempt)
+            } catch {
+                guard !Task.isCancelled else { return }
+                await self?.failImageSearchPreparation(error, rect: overlayRect, attempt: attempt)
+            }
         }
+    }
+
+    private func finishImageSearchPreparation(payload: LensUploadPayload,
+                                              thumbnail: CGImage?,
+                                              rect: CGRect,
+                                              attempt: Int) {
+        guard phase == .overlayActive, lensAttempt == attempt,
+              lastImageSearchRect == rect else { return }
+        lensPreparationTask = nil
+        lastLensThumbnail = thumbnail
+        overlay.showResult(.lensUpload(payload), query: nil, queryImage: thumbnail)
+    }
+
+    private func failImageSearchPreparation(_ error: Error, rect: CGRect, attempt: Int) {
+        guard phase == .overlayActive, lensAttempt == attempt,
+              lastImageSearchRect == rect else { return }
+        lensPreparationTask = nil
+        let message = (error as? LocalizedError)?.errorDescription
+            ?? L10n.t("error.image_search_failed", "图像搜索失败,请重试。")
+        overlay.showResult(.error(message: message, retry: { [weak self] in
+            self?.performImageSearch(overlayRect: rect)
+        }, login: nil), query: nil, queryImage: lastLensThumbnail)
     }
 
     /// F9 二维码检测(切片一):在圈选裁剪图上跑 Vision,与 Lens 图搜并行,命中即回填
@@ -680,18 +720,48 @@ public final class AppCoordinator: ObservableObject {
         promptMode = nil
         lensSessionURL = nil // 新上传 = 新会话
         pendingLensPrompt = PendingLensPrompt(query: q, pillText: q, chip: nil, aiMode: false)
-        lastLensThumbnail = LensService.downscaled(cap.image, maxDimension: 240)
+        lastLensThumbnail = nil
         lensAttempt += 1
-        do {
-            let payload = try search.lensUploadPayload(for: cap.image, attempt: lensAttempt)
-            overlay.showResult(.lensUpload(payload), query: q, queryImage: lastLensThumbnail)
-        } catch {
-            let message = (error as? LocalizedError)?.errorDescription
-                ?? L10n.t("error.image_search_failed", "图像搜索失败,请重试。")
-            overlay.showResult(.error(message: message, retry: { [weak self] in
-                self?.askAboutScreen(q)
-            }, login: nil), query: q, queryImage: lastLensThumbnail)
+        let attempt = lensAttempt
+        let image = cap.image
+        lensPreparationTask?.cancel()
+        overlay.showResult(.loading(query: q), query: q)
+        lensPreparationTask = Task.detached(priority: .userInitiated) { [weak self] in
+            let thumbnail = LensService.downscaled(image, maxDimension: 240)
+            do {
+                let payload = try LensService().uploadPayload(for: image, attempt: attempt)
+                guard !Task.isCancelled else { return }
+                await self?.finishScreenQuestionPreparation(payload: payload,
+                                                            thumbnail: thumbnail,
+                                                            query: q,
+                                                            attempt: attempt)
+            } catch {
+                guard !Task.isCancelled else { return }
+                await self?.failScreenQuestionPreparation(error, query: q, attempt: attempt)
+            }
         }
+    }
+
+    private func finishScreenQuestionPreparation(payload: LensUploadPayload,
+                                                 thumbnail: CGImage?,
+                                                 query: String,
+                                                 attempt: Int) {
+        guard phase == .overlayActive, lensAttempt == attempt,
+              lastImageSearchRect == nil else { return }
+        lensPreparationTask = nil
+        lastLensThumbnail = thumbnail
+        overlay.showResult(.lensUpload(payload), query: query, queryImage: thumbnail)
+    }
+
+    private func failScreenQuestionPreparation(_ error: Error, query: String, attempt: Int) {
+        guard phase == .overlayActive, lensAttempt == attempt,
+              lastImageSearchRect == nil else { return }
+        lensPreparationTask = nil
+        let message = (error as? LocalizedError)?.errorDescription
+            ?? L10n.t("error.image_search_failed", "图像搜索失败,请重试。")
+        overlay.showResult(.error(message: message, retry: { [weak self] in
+            self?.askAboutScreen(query)
+        }, login: nil), query: query, queryImage: lastLensThumbnail)
     }
 
     /// 面板页面 URL 变化:带 vsrid 的 Lens 结果页 = 当前圈图会话的真源

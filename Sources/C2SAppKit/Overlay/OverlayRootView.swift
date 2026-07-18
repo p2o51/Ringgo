@@ -70,6 +70,9 @@ struct OverlayRootView: View {
 
     /// 微光形态由选择状态派生(机制 §8 状态机:idle → tracking → ambient)。
     private var shimmerPhase: ShimmerPhase {
+        if let tip = viewModel.pendingRecognitionTip {
+            return .recognizing(tip: tip)
+        }
         switch viewModel.state {
         case .brushing:
             if let tip = viewModel.brushPoints.last { return .tracking(tip: tip) }
@@ -279,10 +282,22 @@ struct OverlayRootView: View {
 
     /// 动画范式对齐 rectOverlay:transition 挂条件内部、动画挂条件外的容器;
     /// 减弱动态:保留淡入淡出、位移直切(与本文件其余各层一致)。
-    private func windowHandleLayer(size: CGSize) -> some View {
+    @ViewBuilder private func windowHandleLayer(size: CGSize) -> some View {
         let motionReduced = reduceMotion || reduceEffects
         let hoveredID = viewModel.hoveredWindowHandle?.windowID
-        return ZStack(alignment: .topLeading) {
+        if motionReduced {
+            windowHandleContent(hoveredID: hoveredID, time: nil)
+        } else {
+            // 一层共享时钟驱动全部角标，避免每个可见窗口各建一个 30fps TimelineView。
+            TimelineView(.animation(minimumInterval: 1.0 / 30.0)) { context in
+                windowHandleContent(hoveredID: hoveredID,
+                                    time: context.date.timeIntervalSinceReferenceDate)
+            }
+        }
+    }
+
+    private func windowHandleContent(hoveredID: UInt32?, time: TimeInterval?) -> some View {
+        ZStack(alignment: .topLeading) {
             if let hovered = viewModel.hoveredWindowHandle {
                 RoundedRectangle(cornerRadius: 9, style: .continuous)
                     .strokeBorder(.white.opacity(0.9), lineWidth: 2)
@@ -293,15 +308,15 @@ struct OverlayRootView: View {
             }
             ForEach(viewModel.displayedWindowHandles, id: \.windowID) { handle in
                 WindowCornerGlyph(hovered: handle.windowID == hoveredID,
-                                  motionReduced: motionReduced)
+                                  time: time)
                     .offset(x: handle.corner.x - WindowCornerGlyph.size,
                             y: handle.corner.y - WindowCornerGlyph.size)
                     .transition(.opacity)
             }
         }
-        .animation(.easeOut(duration: motionReduced ? 0.12 : 0.18),
+        .animation(.easeOut(duration: time == nil ? 0.12 : 0.18),
                    value: viewModel.displayedWindowHandles.isEmpty)
-        .animation(motionReduced ? nil : .easeOut(duration: 0.15), value: hoveredID)
+        .animation(time == nil ? nil : .easeOut(duration: 0.15), value: hoveredID)
     }
 
     // MARK: - 迷你工具条(选区尾部,不压选区;拖拽中由 miniToolbarKind 抑制)
@@ -489,7 +504,8 @@ private struct StrokedBracketsShape: Shape {
 /// 悬停 = 提亮 + accent 微光,预告「点下去选整窗」。
 private struct WindowCornerGlyph: View {
     let hovered: Bool
-    let motionReduced: Bool
+    /// 全层共享的动画时间；nil = 减弱动态/静态。
+    let time: TimeInterval?
     /// 外接方框边长。v2.3(2026-07-17 用户三轮调参):14/2.5 太细 → 24/12 太粗
     /// → 定格 22/7,分量在、不臃肿;悬停描边系统强调色。
     static let size: CGFloat = 22
@@ -501,13 +517,7 @@ private struct WindowCornerGlyph: View {
         // v2.6/v2.7:玻璃后垫「光谱辉光」(F14 语汇,spectrumRing 同款角向流转),
         // 呼吸 = 整枚角标缓慢变大变小 + 辉光同步明暗(锚在右下角,角尖不漂移);
         // 30fps 节流(全窗多枚常驻);减弱动态 → 静态不呼吸。
-        if motionReduced {
-            glyph(time: nil)
-        } else {
-            TimelineView(.animation(minimumInterval: 1.0 / 30.0)) { ctx in
-                glyph(time: ctx.date.timeIntervalSinceReferenceDate)
-            }
-        }
+        glyph(time: time)
     }
 
     private func glyph(time: TimeInterval?) -> some View {

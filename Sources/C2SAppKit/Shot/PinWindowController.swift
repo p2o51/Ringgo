@@ -47,28 +47,41 @@ final class PinManager {
     }
 
     private func copy(image: CGImage, pointSize: CGSize) {
-        let pasteboard = NSPasteboard.general
-        pasteboard.clearContents()
-        pasteboard.declareTypes([.png, .tiff], owner: nil)
-        if let png = ShotImageEncoder.pngData(image, pointSize: pointSize) {
-            pasteboard.setData(png, forType: .png)
+        Task.detached(priority: .userInitiated) {
+            let png = ShotImageEncoder.pngData(image, pointSize: pointSize)
+            let tiff = ShotImageEncoder.tiffData(image, pointSize: pointSize)
+            await MainActor.run {
+                let pasteboard = NSPasteboard.general
+                pasteboard.clearContents()
+                pasteboard.declareTypes([.png, .tiff], owner: nil)
+                if let png { pasteboard.setData(png, forType: .png) }
+                if let tiff { pasteboard.setData(tiff, forType: .tiff) }
+                Haptics.confirm()
+            }
         }
-        if let tiff = ShotImageEncoder.tiffData(image, pointSize: pointSize) {
-            pasteboard.setData(tiff, forType: .tiff)
-        }
-        Haptics.confirm()
     }
 
     private func save(image: CGImage, pointSize: CGSize) {
-        guard let data = ShotImageEncoder.pngData(image, pointSize: pointSize) else { return }
         let directory = settings.shotSaveDirectoryURL
-        do {
-            let url = try ShotPipeline.writeData(data, ext: "png", directory: directory,
-                                                 template: settings.shotFilenameTemplate)
-            NSWorkspace.shared.activateFileViewerSelecting([url])
-        } catch {
-            ShotPipeline.presentSaveError(error, directory: directory)
+        let template = settings.shotFilenameTemplate
+        Task.detached(priority: .userInitiated) { [weak self] in
+            guard let data = ShotImageEncoder.pngData(image, pointSize: pointSize) else { return }
+            do {
+                let url = try ShotPipeline.writeData(data, ext: "png", directory: directory,
+                                                     template: template)
+                await self?.finishSave(url: url)
+            } catch {
+                await self?.failSave(error, directory: directory)
+            }
         }
+    }
+
+    private func finishSave(url: URL) {
+        NSWorkspace.shared.activateFileViewerSelecting([url])
+    }
+
+    private func failSave(_ error: Error, directory: URL) {
+        ShotPipeline.presentSaveError(error, directory: directory)
     }
 }
 

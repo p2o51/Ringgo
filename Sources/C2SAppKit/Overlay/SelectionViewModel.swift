@@ -94,6 +94,20 @@ final class SelectionViewModel: ObservableObject {
         case brush([CGPoint])
     }
     private var pendingGesture: PendingGesture?
+
+    /// OCR 未完成时，手势已经落成可调矩形，但搜索语义仍待词框裁决。
+    /// 覆盖层用这个锚点让四点微光继续聚成光球；`updateWords` 解析 pending
+    /// 后它变 nil，微光再自然散回 ambient，明确表达“正在识别 → 已完成”。
+    var pendingRecognitionTip: CGPoint? {
+        switch pendingGesture {
+        case .tap(let point):
+            return point
+        case .brush(let path):
+            return path.last
+        case nil:
+            return nil
+        }
+    }
     /// 定向补刀 OCR 认出的额外词(原始坐标):整屏词表晚到时必须重新并入,
     /// 否则慢机器上「改选文字」刚成功、整屏 OCR 一到就把选区连词一起冲掉。
     private var focusedExtras: [OCRWord] = []

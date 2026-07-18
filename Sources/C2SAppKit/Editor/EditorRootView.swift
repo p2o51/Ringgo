@@ -38,6 +38,7 @@ struct EditorRootView: View {
             Divider().opacity(0.4)
             bottomBar
         }
+        .disabled(model.isExporting)
         .background(Color(nsColor: .windowBackgroundColor))
         .onChange(of: model.editingTextID) { _, editing in
             if editing != nil {
@@ -78,10 +79,16 @@ struct EditorRootView: View {
             Button(L10n.t("editor.save_as", "另存为…")) { onSaveAs() }
                 .buttonStyle(.bordered)
                 .controlSize(.small)
-            Button(L10n.t("editor.done", "完成")) { onDone() }
-                .buttonStyle(.borderedProminent)
-                .controlSize(.small)
-                .keyboardShortcut(.defaultAction)
+            Button(action: onDone) {
+                if model.isExporting {
+                    ProgressView().controlSize(.small)
+                } else {
+                    Text(L10n.t("editor.done", "完成"))
+                }
+            }
+            .buttonStyle(.borderedProminent)
+            .controlSize(.small)
+            .keyboardShortcut(.defaultAction)
         }
         .padding(.horizontal, 12)
         .padding(.vertical, 8)

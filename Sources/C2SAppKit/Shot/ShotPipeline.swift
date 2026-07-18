@@ -57,31 +57,48 @@ public final class ShotPipeline {
         let image = product.image
         let pointSize = product.pointSize
         let originGlobal = product.originGlobal
-        // 缩略图现在就做(降采样重绘 = 与原帧存储解耦),原图之后只活到编码结束
-        let thumbnail = LensService.downscaled(image, maxDimension: 480) ?? image
+        let saveDirectory = settings.shotSaveDirectoryURL
+        let filenameTemplate = settings.shotFilenameTemplate
 
         Task.detached(priority: .userInitiated) { [weak self] in
             guard let self else { return } // @MainActor 类隐式 Sendable,绑成 let 消除并发捕获警告
+            // 降采样也会在 5K 首次读取时占一帧以上；与编码一并移出 MainActor。
+            let thumbnail = LensService.downscaled(image, maxDimension: 480) ?? image
             let pngData = (copyEnabled || usePNG)
                 ? ShotImageEncoder.pngData(image, pointSize: pointSize) : nil
             let tiffData = copyEnabled
                 ? ShotImageEncoder.tiffData(image, pointSize: pointSize) : nil
             let deliveryData = usePNG
                 ? pngData : ShotImageEncoder.jpegData(image, pointSize: pointSize)
-            await MainActor.run {
-                self.finishDelivery(deliveryData: deliveryData, pngData: pngData,
-                                    tiffData: tiffData, thumbnail: thumbnail,
-                                    pointSize: pointSize, usePNG: usePNG,
-                                    copyEnabled: copyEnabled, saveEnabled: saveEnabled,
-                                    originGlobal: originGlobal,
-                                    screenFrame: screenFrame)
+            var fileURL: URL?
+            var saveError: Error?
+            if saveEnabled, let deliveryData {
+                do {
+                    fileURL = try Self.writeData(deliveryData, ext: usePNG ? "png" : "jpg",
+                                                 directory: saveDirectory,
+                                                 template: filenameTemplate)
+                } catch {
+                    saveError = error
+                }
             }
+            // 冻结可变局部量再跨 actor，兼容 Swift 6 的并发捕获规则。
+            let completedFileURL = fileURL
+            let completedSaveError = saveError
+            await self.finishDelivery(deliveryData: deliveryData, pngData: pngData,
+                                      tiffData: tiffData, thumbnail: thumbnail,
+                                      pointSize: pointSize, usePNG: usePNG,
+                                      copyEnabled: copyEnabled, fileURL: completedFileURL,
+                                      saveError: completedSaveError,
+                                      saveDirectory: saveDirectory,
+                                      originGlobal: originGlobal,
+                                      screenFrame: screenFrame)
         }
     }
 
     private func finishDelivery(deliveryData: Data?, pngData: Data?, tiffData: Data?,
                                 thumbnail: CGImage, pointSize: CGSize, usePNG: Bool,
-                                copyEnabled: Bool, saveEnabled: Bool,
+                                copyEnabled: Bool, fileURL: URL?, saveError: Error?,
+                                saveDirectory: URL,
                                 originGlobal: CGRect?, screenFrame: CGRect) {
         if copyEnabled {
             let pasteboard = NSPasteboard.general
@@ -93,21 +110,13 @@ public final class ShotPipeline {
 
         guard let deliveryData else {
             // 编码失败(极罕见):剪贴板可能已有 PNG/TIFF,如实报错、不进托盘
-            Self.presentSaveError(ShotDeliveryError.encodingFailed,
-                                  directory: settings.shotSaveDirectoryURL)
+            Self.presentSaveError(ShotDeliveryError.encodingFailed, directory: saveDirectory)
             return
         }
 
         let ext = usePNG ? "png" : "jpg"
-        var fileURL: URL?
-        if saveEnabled {
-            do {
-                fileURL = try Self.writeData(deliveryData, ext: ext,
-                                             directory: settings.shotSaveDirectoryURL,
-                                             template: settings.shotFilenameTemplate)
-            } catch {
-                Self.presentSaveError(error, directory: settings.shotSaveDirectoryURL)
-            }
+        if let saveError {
+            Self.presentSaveError(saveError, directory: saveDirectory)
         }
 
         tray.add(TrayShotItem(thumbnail: thumbnail, pointSize: pointSize,
@@ -124,7 +133,8 @@ public final class ShotPipeline {
     }
 
     /// 命名模板落盘(托盘 💾/拖出共用):建目录 → 展开模板 → 冲突加序号 → 原子写。
-    static func writeData(_ data: Data, ext: String, directory: URL, template: String) throws -> URL {
+    nonisolated static func writeData(_ data: Data, ext: String,
+                                      directory: URL, template: String) throws -> URL {
         let fm = FileManager.default
         try fm.createDirectory(at: directory, withIntermediateDirectories: true)
         let base = FilenameTemplate.expand(template, date: Date())

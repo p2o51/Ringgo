@@ -32,8 +32,16 @@ final class LensService {
 
     /// 裁剪图 → 面板内上传载荷(降采样 ≤1600px → JPEG → 自动提交表单)。
     func uploadPayload(for image: CGImage, attempt: Int = 0) throws -> LensUploadPayload {
-        guard let processed = Self.downscaled(image, maxDimension: Self.maxImageDimension),
-              let jpeg = Self.jpegEncoded(processed, quality: Self.jpegQuality)
+        guard let processed = Self.downscaled(image, maxDimension: Self.maxImageDimension)
+        else { throw LensError.encodingFailed }
+        return try uploadPayload(forPreparedImage: processed, attempt: attempt)
+    }
+
+    /// 已降到上传尺寸的图 → 载荷。后台准备管线复用同一张 processed 图生成
+    /// 缩略图与上传体，避免编辑器首次发送时把 5K 画布重复降采样两遍。
+    func uploadPayload(forPreparedImage processed: CGImage,
+                       attempt: Int = 0) throws -> LensUploadPayload {
+        guard let jpeg = Self.jpegEncoded(processed, quality: Self.jpegQuality)
         else { throw LensError.encodingFailed }
 
         let html = Self.uploadHTML(

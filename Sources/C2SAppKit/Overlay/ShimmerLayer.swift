@@ -4,6 +4,7 @@ import SwiftUI
 enum ShimmerPhase: Equatable {
     case idle                    // 全屏四点渐变游走
     case tracking(tip: CGPoint)  // 收敛为笔尖辉光(弹簧跟随)
+    case recognizing(tip: CGPoint) // 手势已落地、等待全屏 OCR：光球原位保持
     case ambient                 // 定格选区后:降饱和、降亮度
 }
 
@@ -79,6 +80,8 @@ struct ShimmerLayer: View {
             targetTip = nil; targetTracking = 0; targetSaturation = 1.0; targetOpacity = 0.40
         case .tracking(let tip):
             targetTip = tip; targetTracking = 1; targetSaturation = 1.0; targetOpacity = 0.50
+        case .recognizing(let tip):
+            targetTip = tip; targetTracking = 1; targetSaturation = 0.9; targetOpacity = 0.46
         case .ambient:
             targetTip = nil; targetTracking = 0; targetSaturation = 0.35; targetOpacity = 0.25
         }

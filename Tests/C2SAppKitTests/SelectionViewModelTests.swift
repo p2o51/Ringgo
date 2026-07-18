@@ -44,9 +44,11 @@ final class SelectionViewModelTests: XCTestCase {
 
         XCTAssertTrue(textQueries.isEmpty)
         XCTAssertTrue(imageRects.isEmpty, "OCR 未完成不得抢跑路由")
+        XCTAssertEqual(model.pendingRecognitionTip, tap, "等待 OCR 时光球应停在原手势锚点")
 
         model.updateWords([word])
 
+        XCTAssertNil(model.pendingRecognitionTip, "OCR 到达后光球应散开")
         XCTAssertTrue(textQueries.isEmpty, "矩形含词也不得翻转成文字搜索(框=图)")
         XCTAssertEqual(imageRects.count, 1)
     }
@@ -62,8 +64,10 @@ final class SelectionViewModelTests: XCTestCase {
 
         let tap = CGPoint(x: 100, y: 100) // 正落在 alpha 词框内
         model.dragEnded(location: tap, start: tap)
+        XCTAssertEqual(model.pendingRecognitionTip, tap)
         model.updateWords([word])
 
+        XCTAssertNil(model.pendingRecognitionTip)
         XCTAssertEqual(textQueries, ["alpha"], "OCR 后应按原始意图选词")
         XCTAssertTrue(imageRects.isEmpty)
         XCTAssertEqual(model.selectedText, "alpha")

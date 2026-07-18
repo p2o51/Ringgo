@@ -5,8 +5,8 @@ import C2SCore
 // MARK: - 托盘项
 
 /// F21 托盘项(运行期状态,重启不恢复;「截图历史」列后续,spec S3)。
-/// 内存纪律:只持有「已编码 Data + 降采样缩略图」,绝不拿原始 CGImage
-/// (区域裁剪与整张 5K 冻结帧共享后备存储,拿住 = 每项钉 ~50MB)。
+/// 内存纪律:只持有「已编码 Data + 降采样缩略图」,绝不拿原始 CGImage。
+/// 托盘累计超过常驻预算后，旧 Data 会异步落到专用临时文件并按需映射读取。
 @MainActor
 public final class TrayShotItem: ObservableObject, Identifiable {
     public let id = UUID()
@@ -14,7 +14,25 @@ public final class TrayShotItem: ObservableObject, Identifiable {
     @Published private(set) var thumbnail: CGImage
     private(set) var pointSize: CGSize
     /// 交付格式的完整编码数据(💾/拖出/编辑器解码都用它,不持原始 CGImage)。
-    private(set) var data: Data
+    /// 已溢写的旧项通过 mmap 风格读取，不重新永久驻留在托盘模型中。
+    private var residentData: Data?
+    private var spillURL: URL?
+    private var storageRevision = 0
+    private var spillPending = false
+
+    var data: Data {
+        if let residentData { return residentData }
+        guard let spillURL else { return Data() }
+        return (try? Data(contentsOf: spillURL, options: .mappedIfSafe)) ?? Data()
+    }
+
+    var residentByteCount: Int { residentData?.count ?? 0 }
+
+    struct SpillRequest {
+        let revision: Int
+        let data: Data
+        let url: URL
+    }
     /// "png" / "jpg"(交付时按设置与 forcePNG 定死,spec §6)。
     let ext: String
     /// 已落盘路径(nil = 未落盘;💾 或拖出时现场写)。
@@ -40,7 +58,7 @@ public final class TrayShotItem: ObservableObject, Identifiable {
          originGlobal: CGRect? = nil) {
         self.thumbnail = thumbnail
         self.pointSize = pointSize
-        self.data = data
+        self.residentData = data
         self.ext = ext
         self.fileURL = fileURL
         self.originGlobal = originGlobal
@@ -48,10 +66,47 @@ public final class TrayShotItem: ObservableObject, Identifiable {
 
     /// Done 交付后同步(spec S4:托盘缩略图更新为标注后版本;裁剪会改 pointSize)。
     func updateFlattened(data: Data, thumbnail: CGImage, pointSize: CGSize) {
-        self.data = data
+        storageRevision &+= 1
+        spillPending = false
+        discardSpillFile()
+        residentData = data
         self.thumbnail = thumbnail
         self.pointSize = pointSize
         dragTempURL = nil // 旧临时文件内容已过期
+    }
+
+    func beginSpill() -> SpillRequest? {
+        guard !spillPending, spillURL == nil, let residentData else { return nil }
+        spillPending = true
+        let url = FileManager.default.temporaryDirectory
+            .appendingPathComponent("RinggoTray", isDirectory: true)
+            .appendingPathComponent(id.uuidString, isDirectory: true)
+            .appendingPathComponent("image.\(ext)")
+        return SpillRequest(revision: storageRevision, data: residentData, url: url)
+    }
+
+    func completeSpill(_ request: SpillRequest, succeeded: Bool) {
+        spillPending = false
+        guard succeeded, request.revision == storageRevision else {
+            if succeeded {
+                try? FileManager.default.removeItem(at: request.url.deletingLastPathComponent())
+            }
+            return
+        }
+        spillURL = request.url
+        residentData = nil
+    }
+
+    func discardTemporaryStorage() {
+        storageRevision &+= 1
+        spillPending = false
+        discardSpillFile()
+    }
+
+    private func discardSpillFile() {
+        guard let spillURL else { return }
+        try? FileManager.default.removeItem(at: spillURL.deletingLastPathComponent())
+        self.spillURL = nil
     }
 }
 
@@ -72,6 +127,8 @@ public final class QuickAccessTray: ObservableObject {
     @Published var hoveredCardID: UUID?
 
     static let visibleStackCount = 5
+    /// 完整编码图累计常驻上限；超限时保留托盘项与缩略图，只把较旧原图溢写磁盘。
+    static let maxResidentDataBytes = 256 * 1_024 * 1_024
 
     /// F22:点卡片/✏️ = 打开编辑器(coordinator 注入,spec S3)。
     var onOpenItem: ((TrayShotItem) -> Void)?
@@ -96,12 +153,14 @@ public final class QuickAccessTray: ObservableObject {
         items.insert(item, at: 0)
         self.screenFrame = screenFrame // 整叠迁移到快门所在屏
         scheduleAutoDismiss(for: item)
+        enforceResidentDataBudget()
         layoutPanel()
     }
 
     func remove(_ item: TrayShotItem) {
         dismissWorkItems.removeValue(forKey: item.id)?.cancel()
         items.removeAll { $0.id == item.id }
+        item.discardTemporaryStorage()
         if items.count <= Self.visibleStackCount { expanded = false }
         layoutPanel()
     }
@@ -133,7 +192,35 @@ public final class QuickAccessTray: ObservableObject {
 
     /// 外部(编辑器 Done)改了缩略图/尺寸后重排面板。
     func refreshLayout() {
+        enforceResidentDataBudget()
         layoutPanel()
+    }
+
+    /// 不驱逐用户仍能看见的托盘项；只把旧项的完整编码 Data 异步溢写到临时目录。
+    /// 后续保存、拖出、编辑时由 TrayShotItem 按需映射读取。
+    private func enforceResidentDataBudget() {
+        var projectedBytes = items.reduce(0) { $0 + $1.residentByteCount }
+        guard projectedBytes > Self.maxResidentDataBytes else { return }
+        for item in items.reversed() where projectedBytes > Self.maxResidentDataBytes {
+            guard let request = item.beginSpill() else { continue }
+            projectedBytes -= request.data.count
+            // 强持有到写入回主线程收尾：用户若在写入中移除卡片，revision 门会
+            // 删除迟到文件，避免临时目录遗留一份无人引用的大图。
+            Task.detached(priority: .utility) { [item] in
+                var succeeded = false
+                do {
+                    try FileManager.default.createDirectory(
+                        at: request.url.deletingLastPathComponent(),
+                        withIntermediateDirectories: true)
+                    try request.data.write(to: request.url, options: .atomic)
+                    succeeded = true
+                } catch {
+                    try? FileManager.default.removeItem(
+                        at: request.url.deletingLastPathComponent())
+                }
+                await item.completeSpill(request, succeeded: succeeded)
+            }
+        }
     }
 
     // MARK: 拖出(spec S3:拖走就是拿走)
@@ -369,7 +456,7 @@ struct TrayRootView: View {
             }
             .buttonStyle(.plain)
             ScrollView {
-                VStack(spacing: 8) {
+                LazyVStack(spacing: 8) {
                     ForEach(tray.items) { item in
                         TrayCardView(item: item, tray: tray, interactive: true)
                     }

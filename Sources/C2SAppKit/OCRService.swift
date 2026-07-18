@@ -18,6 +18,16 @@ public actor OCRService {
 
     public init() {}
 
+    /// 覆盖层会话结束后主动释放最后一张全屏帧。缓存只服务同一会话内的
+    /// 重复读取；退出后旧 image 不会再被请求，继续强持有只会让菜单栏常驻期
+    /// 多占一整帧（5K Retina 约 50–80MB）。
+    public func clearCache(for image: CGImage) {
+        // 只清理结束会话自己的帧：若用户极快重新唤起覆盖层，迟到的清理任务
+        // 不能误删新会话已经建立的缓存。
+        guard cached?.image === image else { return }
+        cached = nil
+    }
+
     /// 全量词级 OCR;返回覆盖层坐标(点,左上原点)的词框,id 恰为 0..<count。
     /// (actor 有重入:同图并发请求可能重复识别,结果一致、后写覆盖,无害。)
     public func words(in image: CGImage, context: DisplayContext) async -> [OCRWord] {

@@ -22,7 +22,6 @@ enum EditorAIPrompt {
 @MainActor
 final class EditorSearchPanelController {
 
-    private let search = SearchService()
     private let sheetModel = ResultSheetModel()
     private let reduceEffects: () -> Bool
 
@@ -46,6 +45,8 @@ final class EditorSearchPanelController {
     }
     private var pendingPrompt: PendingPrompt?
     private var lensAttempt = 0
+    private var preparationGeneration = 0
+    private var preparationTask: Task<Void, Never>?
     /// 药丸缩略图 = 发出去的画布(与文字 query 对等的查询上下文)。
     private var lastThumbnail: CGImage?
     /// 重试用(降采样 ≤1600:上传管线同尺寸,重发字节一致;不钉 5K 原图)。
@@ -72,24 +73,62 @@ final class EditorSearchPanelController {
     func send(image: CGImage, query: String, pillText: String?,
               chip: QueryModeChip?, aiMode: Bool, nextTo window: NSWindow?) {
         let prompt = PendingPrompt(query: query, pillText: pillText, chip: chip, aiMode: aiMode)
-        lastRequest = (LensService.downscaled(image, maxDimension: 1600) ?? image, prompt)
         staleVSRID = Self.vsrid(of: sheetModel.currentPageURL)
         sawUploadCommit = false
         sheetModel.currentPageURL = nil // 新会话:旧 vsrid 作废(spec S5 会话安全)
         pendingPrompt = prompt
-        lastThumbnail = LensService.downscaled(image, maxDimension: 240)
         lensAttempt += 1
-        do {
-            let payload = try search.lensUploadPayload(for: image, attempt: lensAttempt)
-            show(.lensUpload(payload), query: pillText, queryImage: lastThumbnail)
-        } catch {
-            pendingPrompt = nil
-            let message = (error as? LocalizedError)?.errorDescription
-                ?? L10n.t("error.image_search_failed", "图像搜索失败,请重试。")
-            show(.error(message: message, retry: { [weak self] in self?.retry() }, login: nil),
-                 query: pillText, queryImage: lastThumbnail)
-        }
+        let attempt = lensAttempt
+        preparationGeneration += 1
+        let generation = preparationGeneration
+        preparationTask?.cancel()
+        lastThumbnail = nil
+        show(.loading(query: pillText), query: pillText, queryImage: nil)
         present(nextTo: window)
+
+        preparationTask = Task.detached(priority: .userInitiated) { [weak self] in
+            let processed = LensService.downscaled(
+                image, maxDimension: LensService.maxImageDimension) ?? image
+            let thumbnail = LensService.downscaled(processed, maxDimension: 240)
+            do {
+                let payload = try LensService().uploadPayload(
+                    forPreparedImage: processed, attempt: attempt)
+                guard !Task.isCancelled else { return }
+                await self?.finishPreparation(payload: payload, processed: processed,
+                                              thumbnail: thumbnail, prompt: prompt,
+                                              generation: generation)
+            } catch {
+                guard !Task.isCancelled else { return }
+                await self?.failPreparation(error, processed: processed,
+                                            prompt: prompt, generation: generation)
+            }
+        }
+    }
+
+    private func finishPreparation(payload: LensUploadPayload,
+                                   processed: CGImage,
+                                   thumbnail: CGImage?,
+                                   prompt: PendingPrompt,
+                                   generation: Int) {
+        guard generation == preparationGeneration else { return }
+        preparationTask = nil
+        lastRequest = (processed, prompt)
+        lastThumbnail = thumbnail
+        show(.lensUpload(payload), query: prompt.pillText, queryImage: thumbnail)
+    }
+
+    private func failPreparation(_ error: Error,
+                                 processed: CGImage,
+                                 prompt: PendingPrompt,
+                                 generation: Int) {
+        guard generation == preparationGeneration else { return }
+        preparationTask = nil
+        pendingPrompt = nil
+        lastRequest = (processed, prompt)
+        let message = (error as? LocalizedError)?.errorDescription
+            ?? L10n.t("error.image_search_failed", "图像搜索失败,请重试。")
+        show(.error(message: message, retry: { [weak self] in self?.retry() }, login: nil),
+             query: prompt.pillText, queryImage: lastThumbnail)
     }
 
     /// OverlayWindowController.showResult 的编辑器版(loadToken 语义一致)。
@@ -227,6 +266,10 @@ final class EditorSearchPanelController {
     }
 
     private func closePanel() {
+        preparationGeneration += 1
+        preparationTask?.cancel()
+        preparationTask = nil
+        pendingPrompt = nil
         window?.orderOut(nil)
     }
 }

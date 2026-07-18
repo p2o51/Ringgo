@@ -77,6 +77,9 @@ final class EditorModel: ObservableObject {
     /// 缩放(spec S4:25%–400%,⌘0 适应):nil = 适应;100 = 点尺寸原大。
     /// 放模型层是为了 manager 的键盘监听(⌘+/-/0)可触达。
     @Published var zoomPercent: CGFloat?
+    /// 全分辨率压平/编码进行中：视图显示进度并锁住编辑，避免导出快照后
+    /// 用户继续改图造成“界面是新版、落盘是旧版”的竞态。
+    @Published var isExporting = false
     /// 适应窗口时的百分比(视图按几何回填)。
     var fitPercent: CGFloat = 100
     static let zoomSteps: [CGFloat] = [25, 50, 75, 100, 150, 200, 300, 400]

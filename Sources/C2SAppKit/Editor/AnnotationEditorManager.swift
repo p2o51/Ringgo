@@ -16,6 +16,15 @@ final class AnnotationEditorManager: NSObject {
     /// S5 共享搜索面板(单实例,跟随最近发起请求的编辑器窗口停靠)。
     private let searchPanel: EditorSearchPanelController
     private var windows: [UUID: EditorWindowBox] = [:]
+    private var imageTasks: [UUID: Task<Void, Never>] = [:]
+    private var preparedImageActions: [UUID: PreparedImageAction] = [:]
+
+    private enum PreparedImageAction {
+        case share(anchor: CGRect)
+        case pin
+        case ai(EditorAIPrompt)
+        case ask(String)
+    }
 
     /// item 直接存进 box:脏关窗的「保存」不得回查托盘——编辑期间项可能已被
     /// 移除(拖出/×/自动收起),回查得 nil 会让保存静默失效(2026-07-17 审查)。
@@ -76,6 +85,8 @@ final class AnnotationEditorManager: NSObject {
 
     private func close(itemID: UUID) {
         guard let box = windows[itemID] else { return }
+        imageTasks.removeValue(forKey: itemID)?.cancel()
+        preparedImageActions[itemID] = nil
         // 纯值状态回写托盘项;EditorModel(连同 5K 位图)随 box 释放
         box.item.editorState?.document = box.model.document
         box.item.editorState?.committedDocument = box.model.committedSnapshot
@@ -191,164 +202,275 @@ final class AnnotationEditorManager: NSObject {
     /// 剪贴板开 → 同步刷新;两开关全关 → 兜底写剪贴板。
     /// 写盘失败 → 原生报错、**不关窗不更新托盘**(绝不让用户误以为已保存)。
     private func finishDone(itemID: UUID) {
-        guard let box = windows[itemID] else { return }
+        guard let box = windows[itemID], imageTasks[itemID] == nil else { return }
         let model = box.model
         let item = box.item
         model.commitTextEditing()
-        guard let flattened = model.flatten() else { return }
+        let document = model.document
+        let source = model.source
         let pointSize = model.flattenedPointSize
-
         let usePNG = item.ext == "png"
-        guard let data = usePNG
-            ? ShotImageEncoder.pngData(flattened, pointSize: pointSize)
-            : ShotImageEncoder.jpegData(flattened, pointSize: pointSize) else { return }
+        let existingURL = item.fileURL
+        let autoSave = settings.shotAutoSave
+        let directory = settings.shotSaveDirectoryURL
+        let template = settings.shotFilenameTemplate
+        let shouldCopy = settings.shotCopyToClipboard || (existingURL == nil && !autoSave)
+        let ext = item.ext
+        model.isExporting = true
 
-        // 落盘:覆盖原文件(对齐 CleanShot);未落盘且设置开 → 按模板写新文件
-        var wroteToDisk = false
-        do {
-            if let url = item.fileURL {
-                try data.write(to: url, options: .atomic)
-                wroteToDisk = true
-            } else if settings.shotAutoSave {
-                item.fileURL = try ShotPipeline.writeData(data, ext: item.ext,
-                                                          directory: settings.shotSaveDirectoryURL,
-                                                          template: settings.shotFilenameTemplate)
-                wroteToDisk = true
+        let task = Task.detached(priority: .userInitiated) { [weak self] in
+            guard let flattened = AnnotationRenderer.flatten(document, source: source),
+                  let data = usePNG
+                    ? ShotImageEncoder.pngData(flattened, pointSize: pointSize)
+                    : ShotImageEncoder.jpegData(flattened, pointSize: pointSize)
+            else {
+                await self?.finishEditorEncodingFailure(itemID: itemID)
+                return
             }
-        } catch {
-            ShotPipeline.presentSaveError(
-                error,
-                directory: item.fileURL?.deletingLastPathComponent()
-                    ?? settings.shotSaveDirectoryURL)
-            return // 交付未完成:窗口留着,用户可另存/重试
+
+            // PNG 交付时剪贴板直接复用 data，避免同一张 5K 图再编码一遍。
+            let clipboardPNG = shouldCopy
+                ? (usePNG ? data : ShotImageEncoder.pngData(flattened, pointSize: pointSize)) : nil
+            let clipboardTIFF = shouldCopy
+                ? ShotImageEncoder.tiffData(flattened, pointSize: pointSize) : nil
+            let thumbnail = LensService.downscaled(flattened, maxDimension: 480) ?? flattened
+
+            var fileURL = existingURL
+            do {
+                if let existingURL {
+                    try data.write(to: existingURL, options: .atomic)
+                } else if autoSave {
+                    fileURL = try ShotPipeline.writeData(data, ext: ext,
+                                                         directory: directory,
+                                                         template: template)
+                }
+            } catch {
+                await self?.finishEditorExportFailure(error, itemID: itemID,
+                                                      directory: existingURL?.deletingLastPathComponent()
+                                                        ?? directory)
+                return
+            }
+
+            guard !Task.isCancelled else { return }
+            await self?.finishEditorExport(itemID: itemID, data: data,
+                                           clipboardPNG: clipboardPNG,
+                                           clipboardTIFF: clipboardTIFF,
+                                           thumbnail: thumbnail, pointSize: pointSize,
+                                           fileURL: fileURL)
         }
-        // 剪贴板:开 → 刷新;没写成盘 → 兜底写(产物必须有去处,spec S4)
-        if settings.shotCopyToClipboard || !wroteToDisk {
+        imageTasks[itemID] = task
+    }
+
+    private func finishEditorExport(itemID: UUID, data: Data,
+                                    clipboardPNG: Data?, clipboardTIFF: Data?,
+                                    thumbnail: CGImage, pointSize: CGSize,
+                                    fileURL: URL?) {
+        guard let box = windows[itemID] else { return }
+        imageTasks[itemID] = nil
+        if clipboardPNG != nil || clipboardTIFF != nil {
             let pasteboard = NSPasteboard.general
             pasteboard.clearContents()
             pasteboard.declareTypes([.png, .tiff], owner: nil)
-            if let png = ShotImageEncoder.pngData(flattened, pointSize: pointSize) {
-                pasteboard.setData(png, forType: .png)
-            }
-            if let tiff = ShotImageEncoder.tiffData(flattened, pointSize: pointSize) {
-                pasteboard.setData(tiff, forType: .tiff)
-            }
+            if let clipboardPNG { pasteboard.setData(clipboardPNG, forType: .png) }
+            if let clipboardTIFF { pasteboard.setData(clipboardTIFF, forType: .tiff) }
         }
-        // 托盘项同步(缩略图 = 标注后版本,spec S4)
-        let thumbnail = LensService.downscaled(flattened, maxDimension: 480) ?? flattened
-        item.updateFlattened(data: data, thumbnail: thumbnail, pointSize: pointSize)
+        box.item.fileURL = fileURL
+        box.item.updateFlattened(data: data, thumbnail: thumbnail, pointSize: pointSize)
         tray?.refreshLayout()
-
-        model.markCommitted()
+        box.model.markCommitted()
+        box.model.isExporting = false
         Haptics.confirm()
         close(itemID: itemID)
     }
 
-    private func saveAs(itemID: UUID) {
+    private func finishEditorEncodingFailure(itemID: UUID) {
         guard let box = windows[itemID] else { return }
+        imageTasks[itemID] = nil
+        preparedImageActions[itemID] = nil
+        box.model.isExporting = false
+        ShotPipeline.presentSaveError(ShotPipeline.ShotDeliveryError.encodingFailed,
+                                      directory: settings.shotSaveDirectoryURL)
+    }
+
+    private func finishEditorExportFailure(_ error: Error, itemID: UUID, directory: URL) {
+        guard let box = windows[itemID] else { return }
+        imageTasks[itemID] = nil
+        preparedImageActions[itemID] = nil
+        box.model.isExporting = false
+        ShotPipeline.presentSaveError(error, directory: directory)
+    }
+
+    private func saveAs(itemID: UUID) {
+        guard let box = windows[itemID], imageTasks[itemID] == nil else { return }
         let model = box.model
         let item = box.item
         model.commitTextEditing()
-        guard let flattened = model.flatten() else { return }
         let panel = NSSavePanel()
         panel.allowedContentTypes = [item.ext == "png" ? .png : .jpeg]
         panel.nameFieldStringValue = model.displayName.isEmpty
             ? FilenameTemplate.expand(settings.shotFilenameTemplate, date: Date())
             : model.displayName
-        panel.beginSheetModal(for: box.window) { response in
+        panel.beginSheetModal(for: box.window) { [weak self] response in
             MainActor.assumeIsolated {
                 guard response == .OK, let url = panel.url else { return }
-                let pointSize = model.flattenedPointSize
-                let data = item.ext == "png"
-                    ? ShotImageEncoder.pngData(flattened, pointSize: pointSize)
-                    : ShotImageEncoder.jpegData(flattened, pointSize: pointSize)
-                do {
-                    try data?.write(to: url, options: .atomic)
-                } catch {
-                    ShotPipeline.presentSaveError(error, directory: url.deletingLastPathComponent())
-                }
+                self?.beginSaveAs(itemID: itemID, url: url)
             }
         }
     }
 
-    private func copyFlattened(itemID: UUID) {
-        guard let box = windows[itemID] else { return }
+    private func beginSaveAs(itemID: UUID, url: URL) {
+        guard let box = windows[itemID], imageTasks[itemID] == nil else { return }
         box.model.commitTextEditing()
-        guard let flattened = box.model.flatten() else { return }
+        let document = box.model.document
+        let source = box.model.source
         let pointSize = box.model.flattenedPointSize
+        let usePNG = box.item.ext == "png"
+        box.model.isExporting = true
+        let task = Task.detached(priority: .userInitiated) { [weak self] in
+            guard let flattened = AnnotationRenderer.flatten(document, source: source),
+                  let data = usePNG
+                    ? ShotImageEncoder.pngData(flattened, pointSize: pointSize)
+                    : ShotImageEncoder.jpegData(flattened, pointSize: pointSize)
+            else {
+                await self?.finishEditorEncodingFailure(itemID: itemID)
+                return
+            }
+            do {
+                try data.write(to: url, options: .atomic)
+            } catch {
+                await self?.finishEditorExportFailure(error, itemID: itemID,
+                                                      directory: url.deletingLastPathComponent())
+                return
+            }
+            guard !Task.isCancelled else { return }
+            await self?.finishSaveAs(itemID: itemID)
+        }
+        imageTasks[itemID] = task
+    }
+
+    private func finishSaveAs(itemID: UUID) {
+        guard let box = windows[itemID] else { return }
+        imageTasks[itemID] = nil
+        box.model.isExporting = false
+        Haptics.confirm()
+    }
+
+    private func copyFlattened(itemID: UUID) {
+        guard let box = windows[itemID], imageTasks[itemID] == nil else { return }
+        box.model.commitTextEditing()
+        let document = box.model.document
+        let source = box.model.source
+        let pointSize = box.model.flattenedPointSize
+        box.model.isExporting = true
+        let task = Task.detached(priority: .userInitiated) { [weak self] in
+            guard let flattened = AnnotationRenderer.flatten(document, source: source),
+                  let png = ShotImageEncoder.pngData(flattened, pointSize: pointSize)
+            else {
+                await self?.finishEditorEncodingFailure(itemID: itemID)
+                return
+            }
+            let tiff = ShotImageEncoder.tiffData(flattened, pointSize: pointSize)
+            guard !Task.isCancelled else { return }
+            await self?.finishCopy(itemID: itemID, png: png, tiff: tiff)
+        }
+        imageTasks[itemID] = task
+    }
+
+    private func finishCopy(itemID: UUID, png: Data, tiff: Data?) {
+        guard let box = windows[itemID] else { return }
+        imageTasks[itemID] = nil
+        box.model.isExporting = false
         let pasteboard = NSPasteboard.general
         pasteboard.clearContents()
         pasteboard.declareTypes([.png, .tiff], owner: nil)
-        if let png = ShotImageEncoder.pngData(flattened, pointSize: pointSize) {
-            pasteboard.setData(png, forType: .png)
-        }
-        if let tiff = ShotImageEncoder.tiffData(flattened, pointSize: pointSize) {
-            pasteboard.setData(tiff, forType: .tiff)
-        }
+        pasteboard.setData(png, forType: .png)
+        if let tiff { pasteboard.setData(tiff, forType: .tiff) }
         Haptics.confirm()
     }
 
     /// anchor = 分享按钮的 frame(SwiftUI .global,顶左原点——与 flipped 的
     /// NSHostingView 同一坐标系,直接可用;审查修正:此前锚点算到右上角)。
     private func share(itemID: UUID, anchor: CGRect) {
-        guard let box = windows[itemID] else { return }
-        box.model.commitTextEditing()
-        guard let flattened = box.model.flatten() else { return }
-        let image = NSImage(cgImage: flattened, size: box.model.flattenedPointSize)
-        guard let contentView = box.window.contentView else { return }
-        let picker = NSSharingServicePicker(items: [image])
-        let rect = anchor.isEmpty
-            ? CGRect(x: contentView.bounds.maxX - 40,
-                     y: contentView.bounds.maxY - 36, width: 24, height: 24)
-            : anchor
-        picker.show(relativeTo: rect, of: contentView, preferredEdge: .minY)
+        prepareFlattenedImage(itemID: itemID, action: .share(anchor: anchor))
     }
 
     // MARK: F23 钉图 / S5 AI chips(发出去的都是「含标注压平的当前画布」)
 
     private func pinCurrent(itemID: UUID) {
-        guard let box = windows[itemID] else { return }
-        box.model.commitTextEditing()
-        guard let flattened = box.model.flatten() else { return }
-        pinManager.pin(image: flattened,
-                       pointSize: box.model.flattenedPointSize,
-                       origin: box.item.originGlobal,
-                       item: box.item)
+        prepareFlattenedImage(itemID: itemID, action: .pin)
     }
 
     /// 翻译整图 / 可视化:一次性动作,prompt 复用 F15(spec S5)。
     private func sendAIPrompt(itemID: UUID, kind: EditorAIPrompt) {
-        guard let box = windows[itemID] else { return }
-        box.model.commitTextEditing()
-        guard let flattened = box.model.flatten() else { return }
-        switch kind {
-        case .translate:
-            let targetName = currentTranslationTargetName()
-            let prompt = L10n.f("prompt.translate_image",
-                                "请把这张图片里的所有文字翻译成%@,按原文的结构和顺序输出译文。", targetName)
-            searchPanel.send(image: flattened, query: prompt, pillText: nil,
-                             chip: QueryModeChip(mode: .translate, icon: "translate",
-                                                 label: L10n.f("chip.translate", "翻译 · %@", targetName)),
-                             aiMode: true, nextTo: box.window)
-        case .visualize:
-            let prompt = L10n.t("prompt.visualize_image",
-                                "请可视化这张图片的内容:适合数据或结构就生成可视化图表(信息图/流程图/对比表等),更适合画面就用 nano banana 生成一张新图片来呈现。")
-            searchPanel.send(image: flattened, query: prompt, pillText: nil,
-                             chip: QueryModeChip(mode: .visualize, icon: "chart.bar.xaxis",
-                                                 label: L10n.t("common.visualize", "可视化")),
-                             aiMode: true, nextTo: box.window)
-        }
+        prepareFlattenedImage(itemID: itemID, action: .ai(kind))
     }
 
     /// 提问:整图 + 问题(每次发送 = 新会话重传当前画布,spec S5)。
     /// aiMode = true 按 spec S5 字面(multisearch + AI Mode,图+文问答);
     /// F11 覆盖层整屏提问现行为 false,两处分歧已在 spec 决策记录标注。
     private func sendAsk(itemID: UUID, text: String) {
-        guard let box = windows[itemID] else { return }
+        prepareFlattenedImage(itemID: itemID, action: .ask(text))
+    }
+
+    /// 分享、钉图与 AI 都只需要一张压平图。统一后台渲染，避免每个入口各自在
+    /// MainActor 上处理全分辨率画布。
+    private func prepareFlattenedImage(itemID: UUID, action: PreparedImageAction) {
+        guard let box = windows[itemID], imageTasks[itemID] == nil else { return }
         box.model.commitTextEditing()
-        guard let flattened = box.model.flatten() else { return }
-        searchPanel.send(image: flattened, query: text, pillText: text,
-                         chip: nil, aiMode: true, nextTo: box.window)
+        let document = box.model.document
+        let source = box.model.source
+        let pointSize = box.model.flattenedPointSize
+        box.model.isExporting = true
+        preparedImageActions[itemID] = action
+        let task = Task.detached(priority: .userInitiated) { [weak self] in
+            guard let flattened = AnnotationRenderer.flatten(document, source: source) else {
+                await self?.finishEditorEncodingFailure(itemID: itemID)
+                return
+            }
+            guard !Task.isCancelled else { return }
+            await self?.finishPreparedImage(itemID: itemID, image: flattened,
+                                            pointSize: pointSize)
+        }
+        imageTasks[itemID] = task
+    }
+
+    private func finishPreparedImage(itemID: UUID, image: CGImage, pointSize: CGSize) {
+        guard let box = windows[itemID],
+              let action = preparedImageActions.removeValue(forKey: itemID) else { return }
+        imageTasks[itemID] = nil
+        box.model.isExporting = false
+        switch action {
+        case .share(let anchor):
+            guard let contentView = box.window.contentView else { return }
+            let picker = NSSharingServicePicker(
+                items: [NSImage(cgImage: image, size: pointSize)])
+            let rect = anchor.isEmpty
+                ? CGRect(x: contentView.bounds.maxX - 40,
+                         y: contentView.bounds.maxY - 36, width: 24, height: 24)
+                : anchor
+            picker.show(relativeTo: rect, of: contentView, preferredEdge: .minY)
+        case .pin:
+            pinManager.pin(image: image, pointSize: pointSize,
+                           origin: box.item.originGlobal, item: box.item)
+        case .ai(.translate):
+            let targetName = currentTranslationTargetName()
+            let prompt = L10n.f("prompt.translate_image",
+                                "请把这张图片里的所有文字翻译成%@,按原文的结构和顺序输出译文。", targetName)
+            searchPanel.send(image: image, query: prompt, pillText: nil,
+                             chip: QueryModeChip(mode: .translate, icon: "translate",
+                                                 label: L10n.f("chip.translate", "翻译 · %@", targetName)),
+                             aiMode: true, nextTo: box.window)
+        case .ai(.visualize):
+            let prompt = L10n.t("prompt.visualize_image",
+                                "请可视化这张图片的内容:适合数据或结构就生成可视化图表(信息图/流程图/对比表等),更适合画面就用 nano banana 生成一张新图片来呈现。")
+            searchPanel.send(image: image, query: prompt, pillText: nil,
+                             chip: QueryModeChip(mode: .visualize, icon: "chart.bar.xaxis",
+                                                 label: L10n.t("common.visualize", "可视化")),
+                             aiMode: true, nextTo: box.window)
+        case .ask(let text):
+            searchPanel.send(image: image, query: text, pillText: text,
+                             chip: nil, aiMode: true, nextTo: box.window)
+        }
     }
 
     /// F10 语言 UX 同源:目标 = 设置持久值 ∨ 系统首选。
