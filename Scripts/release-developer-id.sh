@@ -52,7 +52,7 @@ rm -rf "$DIST_DIR"
 mkdir -p "$DIST_DIR"
 
 echo "① 构建并签名 App"
-C2S_SIGN_IDENTITY="$SIGN_IDENTITY" Scripts/build-app.sh release
+C2S_SIGNING_MODE=developer-id C2S_SIGN_IDENTITY="$SIGN_IDENTITY" Scripts/build-app.sh release
 codesign --verify --deep --strict --verbose=2 "$APP"
 
 echo "② 提交 App 公证"

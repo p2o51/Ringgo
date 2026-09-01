@@ -61,14 +61,19 @@ export DEVELOPER_DIR=/Applications/Xcode.app/Contents/Developer
 swift build                 # 编译
 swift test                  # 全部单测(SelectionEngine 对抗场景 / 坐标 / multipart / OCR 冒烟)
 Scripts/build-app.sh        # 组装 build/Ringgo.app(含 Info.plist,稳定身份的本地 ad-hoc 签名)
+Scripts/check-install-identity.sh  # 覆盖 /Applications/Ringgo.app 前必须通过
 open build/Ringgo.app       # 运行(菜单栏代理;首次抓屏会申请屏幕录制权限)
 ```
 
 目标结构:`C2SCore`(纯逻辑,可单测)→ `C2SAppKit`(服务与 UI)→ `C2S`(@main 薄壳)。
 产品名/bundle id 为 Ringgo / `dev.ringgo.Ringgo`;C2S 仅作为代号保留在 SPM
-目标名与仓库名中。本地脚本会给 ad-hoc 构建写入稳定的 designated requirement，
-避免每次改二进制后屏幕录制授权因 cdhash 变化而失效。正式分发时通过
-`C2S_SIGN_IDENTITY="Developer ID Application: …"` 使用 Developer ID 签名 + 公证。
+目标名与仓库名中。本地脚本固定使用 ad-hoc 签名并写入稳定的 designated requirement，
+避免每次改二进制后屏幕录制授权因 cdhash 变化而失效；构建开始前还会核对
+`/Applications/Ringgo.app` 是否仍是这条本机签名线。即使终端残留
+`C2S_SIGN_IDENTITY` 也会拒绝构建，不能静默切到 Developer ID。覆盖
+`/Applications/Ringgo.app` 前必须运行 `Scripts/check-install-identity.sh`，同时核对
+bundle id 和 designated requirement。正式分发只通过下方发布脚本显式使用
+Developer ID 签名 + 公证；两条签名线不可互相覆盖安装。
 
 Developer ID 正式发布（需要钥匙串证书与 `notarytool` profile）：
 

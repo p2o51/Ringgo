@@ -64,6 +64,16 @@
 "tray.remove" = "Remove (file stays)";
 /* F22 tray card ✏️ tooltip: open annotation editor */
 "tray.annotate" = "Annotate";
+/* F21 tray card context menu */
+"tray.menu.copy_one" = "Copy This File";
+/* F21 tray card context menu; %d = item count */
+"tray.menu.copy_all" = "Copy All %d Files";
+/* F21 tray card context menu */
+"tray.menu.reveal_all" = "Reveal All in Finder";
+/* F21 tray card context menu; does not delete saved files */
+"tray.menu.close_one" = "Close This Thumbnail";
+/* F21 tray card context menu; does not delete saved files */
+"tray.menu.close_all" = "Close All";
 /* F22 editor tool */
 "editor.tool.select" = "Select";
 /* F22 editor tool */

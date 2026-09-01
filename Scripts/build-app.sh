@@ -11,6 +11,41 @@ cd "$(dirname "$0")/.."
 
 CONFIG="${1:-debug}"
 APP="build/Ringgo.app"
+SIGNING_MODE="${C2S_SIGNING_MODE:-local}"
+SIGN_IDENTITY="${C2S_SIGN_IDENTITY:-}"
+
+# 在编译和覆盖现有 build/Ringgo.app 前先锁定签名模式，失败时不留下未签名候选包。
+if [ "$SIGNING_MODE" = "local" ]; then
+  if [ -n "$SIGN_IDENTITY" ]; then
+    echo "❌ 本机构建拒绝使用 C2S_SIGN_IDENTITY；请清除此变量。" >&2
+    echo "   Developer ID 仅允许通过 Scripts/release-developer-id.sh 使用。" >&2
+    exit 2
+  fi
+elif [ "$SIGNING_MODE" = "developer-id" ]; then
+  if [ -z "$SIGN_IDENTITY" ]; then
+    echo "❌ Developer ID 模式缺少 C2S_SIGN_IDENTITY。" >&2
+    exit 2
+  fi
+else
+  echo "❌ 未知签名模式：$SIGNING_MODE（仅支持 local / developer-id）" >&2
+  exit 2
+fi
+
+if [ "$SIGNING_MODE" = "local" ] && [ -d "/Applications/Ringgo.app" ]; then
+  EXPECTED_ID="dev.ringgo.Ringgo"
+  EXPECTED_REQUIREMENT='designated => identifier "dev.ringgo.Ringgo"'
+  INSTALLED_ID=$(/usr/libexec/PlistBuddy -c 'Print :CFBundleIdentifier' \
+    /Applications/Ringgo.app/Contents/Info.plist 2>/dev/null || true)
+  INSTALLED_REQUIREMENT=$(codesign -dr - /Applications/Ringgo.app 2>&1 \
+    | sed -n 's/^designated => /designated => /p' || true)
+  if [ "$INSTALLED_ID" != "$EXPECTED_ID" ] || [ "$INSTALLED_REQUIREMENT" != "$EXPECTED_REQUIREMENT" ]; then
+    echo "❌ 现有 /Applications/Ringgo.app 与稳定本机签名基线不一致，构建已停止。" >&2
+    echo "   bundle id：${INSTALLED_ID:-无法读取}" >&2
+    echo "   requirement：${INSTALLED_REQUIREMENT:-无法读取}" >&2
+    echo "   请先告知用户；签名切换后不能承诺保留屏幕录制授权。" >&2
+    exit 3
+  fi
+fi
 
 case "$(uname -m)" in
   arm64) HOST_TRIPLE="arm64-apple-macosx" ;;
@@ -58,14 +93,13 @@ for bundle in "$BUNDLE_DIR"/*.bundle; do
   [ -e "$bundle" ] && cp -R "$bundle" "$APP/Contents/Resources/" || true
 done
 
-# 本地开发默认用 ad-hoc 签名，但显式写入稳定 designated requirement。
+# 本地开发固定使用 ad-hoc 签名，但显式写入稳定 designated requirement。
 # 否则 codesign 会把每次构建的 cdhash 当作身份，Screen Recording 的 TCC
 # 授权会在每次二进制变化后看似“已开启”却实际失效。
 #
-# 正式分发时传入 Apple 签名身份，例如：
-#   C2S_SIGN_IDENTITY="Developer ID Application: ..." Scripts/build-app.sh release
-SIGN_IDENTITY="${C2S_SIGN_IDENTITY:--}"
-if [ "$SIGN_IDENTITY" = "-" ]; then
+# Developer ID 只能由正式发布流水线显式选择，避免终端里残留的
+# C2S_SIGN_IDENTITY 让日常本机构建悄悄切换身份。
+if [ "$SIGNING_MODE" = "local" ]; then
   codesign --force --options runtime --sign - \
     --requirements '=designated => identifier "dev.ringgo.Ringgo"' \
     "$APP"

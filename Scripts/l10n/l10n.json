@@ -40,6 +40,11 @@
     "tray.reveal":                 {"zh-Hans": "在 Finder 中显示", "en": "Reveal in Finder", "ja": "Finder に表示", "ctx": "F21 tray card action tooltip (already saved)"},
     "tray.remove":                 {"zh-Hans": "移除(文件不动)", "en": "Remove (file stays)", "ja": "取り除く(ファイルはそのまま)", "ctx": "F21 tray card × tooltip"},
     "tray.annotate":               {"zh-Hans": "标注", "en": "Annotate", "ja": "注釈", "ctx": "F22 tray card ✏️ tooltip: open annotation editor"},
+    "tray.menu.copy_one":          {"zh-Hans": "复制这个文件", "en": "Copy This File", "ja": "このファイルをコピー", "ctx": "F21 tray card context menu"},
+    "tray.menu.copy_all":          {"zh-Hans": "复制全部 %d 个文件", "en": "Copy All %d Files", "ja": "%d 個のファイルをすべてコピー", "ctx": "F21 tray card context menu; %d = item count"},
+    "tray.menu.reveal_all":        {"zh-Hans": "在 Finder 中显示全部", "en": "Reveal All in Finder", "ja": "すべて Finder に表示", "ctx": "F21 tray card context menu"},
+    "tray.menu.close_one":         {"zh-Hans": "关闭这个缩略图", "en": "Close This Thumbnail", "ja": "このサムネイルを閉じる", "ctx": "F21 tray card context menu; does not delete saved files"},
+    "tray.menu.close_all":         {"zh-Hans": "全部关闭", "en": "Close All", "ja": "すべて閉じる", "ctx": "F21 tray card context menu; does not delete saved files"},
 
     "editor.tool.select":          {"zh-Hans": "选择", "en": "Select", "ja": "選択", "ctx": "F22 editor tool"},
     "editor.tool.crop":            {"zh-Hans": "裁剪", "en": "Crop", "ja": "切り取り", "ctx": "F22 editor tool"},

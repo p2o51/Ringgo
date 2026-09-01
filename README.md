@@ -74,6 +74,9 @@ swift test
 # 打出 Ringgo.app（release = arm64 + x86_64 通用二进制）
 DEVELOPER_DIR=/Applications/Xcode.app/Contents/Developer Scripts/build-app.sh release
 # 产物在 build/Ringgo.app
+
+# 覆盖本机现有安装前，必须核对 bundle id 与签名身份
+Scripts/check-install-identity.sh build/Ringgo.app /Applications/Ringgo.app
 ```
 
 技术栈：Swift · SwiftUI + AppKit · Vision · ScreenCaptureKit · WebKit · Translation · Metal。

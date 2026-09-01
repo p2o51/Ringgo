@@ -64,6 +64,16 @@
 "tray.remove" = "取り除く(ファイルはそのまま)";
 /* F22 tray card ✏️ tooltip: open annotation editor */
 "tray.annotate" = "注釈";
+/* F21 tray card context menu */
+"tray.menu.copy_one" = "このファイルをコピー";
+/* F21 tray card context menu; %d = item count */
+"tray.menu.copy_all" = "%d 個のファイルをすべてコピー";
+/* F21 tray card context menu */
+"tray.menu.reveal_all" = "すべて Finder に表示";
+/* F21 tray card context menu; does not delete saved files */
+"tray.menu.close_one" = "このサムネイルを閉じる";
+/* F21 tray card context menu; does not delete saved files */
+"tray.menu.close_all" = "すべて閉じる";
 /* F22 editor tool */
 "editor.tool.select" = "選択";
 /* F22 editor tool */

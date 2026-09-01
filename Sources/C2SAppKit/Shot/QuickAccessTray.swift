@@ -1,4 +1,5 @@
 import AppKit
+import Combine
 import SwiftUI
 import C2SCore
 
@@ -121,7 +122,7 @@ public final class QuickAccessTray: ObservableObject {
     @Published var expanded = false
     /// 悬停托盘 = 暂停所有自动收起计时(spec S3)+ 堆叠扇开(v2)。
     @Published var panelHovered = false {
-        didSet { panelHovered ? pauseAutoDismiss() : resumeAutoDismiss() }
+        didSet { updateGlobalAutoDismissPause() }
     }
     /// v2(2026-07-17 用户拍板):悬停中的卡片升到最上层——被压住的图也点得到。
     @Published var hoveredCardID: UUID?
@@ -142,9 +143,28 @@ public final class QuickAccessTray: ObservableObject {
     private var screenFrame: CGRect?
     private var hiddenForCapture = false
     private var dismissWorkItems: [UUID: DispatchWorkItem] = [:]
+    private struct AutoDismissState {
+        var remaining: TimeInterval
+        var deadline: Date?
+        var generation = UUID()
+    }
+    private var dismissStates: [UUID: AutoDismissState] = [:]
+    /// 编辑器等“单项暂停”不能被鼠标进出托盘的全局恢复覆盖。
+    private var individuallyPausedItemIDs: Set<UUID> = []
+    /// 右键菜单弹出后鼠标会离开 panel；菜单关闭前仍应暂停计时。
+    private var contextMenuPresented = false
+    private var autoDismissSettingsCancellable: AnyCancellable?
 
     init(settings: SettingsStore) {
         self.settings = settings
+        autoDismissSettingsCancellable = settings.$shotTrayAutoDismiss
+            .combineLatest(settings.$shotTrayAutoDismissSeconds)
+            .dropFirst()
+            .sink { [weak self] _, _ in
+                Task { @MainActor [weak self] in
+                    self?.resetAutoDismissTimersForCurrentSettings()
+                }
+            }
     }
 
     // MARK: 增删
@@ -152,6 +172,7 @@ public final class QuickAccessTray: ObservableObject {
     func add(_ item: TrayShotItem, on screenFrame: CGRect) {
         items.insert(item, at: 0)
         self.screenFrame = screenFrame // 整叠迁移到快门所在屏
+        dismissStates[item.id] = AutoDismissState(remaining: configuredAutoDismissDelay())
         scheduleAutoDismiss(for: item)
         enforceResidentDataBudget()
         layoutPanel()
@@ -159,9 +180,23 @@ public final class QuickAccessTray: ObservableObject {
 
     func remove(_ item: TrayShotItem) {
         dismissWorkItems.removeValue(forKey: item.id)?.cancel()
+        dismissStates.removeValue(forKey: item.id)
+        individuallyPausedItemIDs.remove(item.id)
         items.removeAll { $0.id == item.id }
         item.discardTemporaryStorage()
         if items.count <= Self.visibleStackCount { expanded = false }
+        layoutPanel()
+    }
+
+    func removeAll() {
+        let removedItems = items
+        for work in dismissWorkItems.values { work.cancel() }
+        dismissWorkItems.removeAll()
+        dismissStates.removeAll()
+        individuallyPausedItemIDs.removeAll()
+        items.removeAll()
+        for item in removedItems { item.discardTemporaryStorage() }
+        expanded = false
         layoutPanel()
     }
 
@@ -171,14 +206,96 @@ public final class QuickAccessTray: ObservableObject {
             NSWorkspace.shared.activateFileViewerSelecting([url])
             return
         }
+        _ = save(item)
+    }
+
+    @discardableResult
+    private func save(_ item: TrayShotItem) -> URL? {
         let directory = settings.shotSaveDirectoryURL
         do {
             item.fileURL = try ShotPipeline.writeData(item.data, ext: item.ext,
                                                       directory: directory,
                                                       template: settings.shotFilenameTemplate)
+            return item.fileURL
         } catch {
             ShotPipeline.presentSaveError(error, directory: directory)
+            return nil
         }
+    }
+
+    /// 剪贴板写文件 URL 列表，因此 Finder/邮件等目标能一次粘贴多张图。
+    func copyFiles(_ selectedItems: [TrayShotItem]) {
+        let urls = selectedItems.compactMap { fileURLForDrag($0) }
+        guard !urls.isEmpty else { return }
+        let pasteboard = NSPasteboard.general
+        pasteboard.clearContents()
+        pasteboard.writeObjects(urls as [NSURL])
+    }
+
+    /// Finder 只能可靠显示磁盘文件；未自动保存的项先落到用户设置的截图目录。
+    func revealInFinder(_ selectedItems: [TrayShotItem]) {
+        let urls = selectedItems.compactMap { item -> URL? in
+            if let url = item.fileURL, FileManager.default.fileExists(atPath: url.path) {
+                return url
+            }
+            return save(item)
+        }
+        guard !urls.isEmpty else { return }
+        NSWorkspace.shared.activateFileViewerSelecting(urls)
+    }
+
+    func contextMenu(for item: TrayShotItem) -> NSMenu {
+        let menu = NSMenu()
+        menu.autoenablesItems = false
+        menu.addItem(TrayClosureMenuItem(
+            title: L10n.t("tray.annotate", "标注"), systemImage: "pencil.tip.crop.circle") {
+                [weak self, weak item] in guard let item else { return }; self?.onOpenItem?(item)
+            })
+        menu.addItem(TrayClosureMenuItem(
+            title: L10n.t("tray.pin", "钉在屏幕上"), systemImage: "pin") {
+                [weak self, weak item] in guard let item else { return }; self?.onPinItem?(item)
+            })
+        menu.addItem(.separator())
+        menu.addItem(TrayClosureMenuItem(
+            title: L10n.t("tray.menu.copy_one", "复制这个文件"), systemImage: "doc.on.doc") {
+                [weak self, weak item] in guard let item else { return }; self?.copyFiles([item])
+            })
+        if items.count > 1 {
+            let count = items.count
+            menu.addItem(TrayClosureMenuItem(
+                title: L10n.f("tray.menu.copy_all", "复制全部 %d 个文件", count),
+                systemImage: "square.on.square") { [weak self] in
+                    guard let self else { return }; self.copyFiles(self.items)
+                })
+        }
+        menu.addItem(TrayClosureMenuItem(
+            title: L10n.t("tray.reveal", "在 Finder 中显示"), systemImage: "folder") {
+                [weak self, weak item] in guard let item else { return }; self?.revealInFinder([item])
+            })
+        if items.count > 1 {
+            menu.addItem(TrayClosureMenuItem(
+                title: L10n.t("tray.menu.reveal_all", "在 Finder 中显示全部"),
+                systemImage: "folder.badge.plus") { [weak self] in
+                    guard let self else { return }; self.revealInFinder(self.items)
+                })
+        }
+        menu.addItem(.separator())
+        menu.addItem(TrayClosureMenuItem(
+            title: L10n.t("tray.menu.close_one", "关闭这个缩略图"), systemImage: "xmark") {
+                [weak self, weak item] in guard let item else { return }; self?.remove(item)
+            })
+        if items.count > 1 {
+            menu.addItem(TrayClosureMenuItem(
+                title: L10n.t("tray.menu.close_all", "全部关闭"), systemImage: "xmark.circle") {
+                    [weak self] in self?.removeAll()
+                })
+        }
+        return menu
+    }
+
+    func setContextMenuPresented(_ presented: Bool) {
+        contextMenuPresented = presented
+        updateGlobalAutoDismissPause()
     }
 
     func setExpanded(_ value: Bool) {
@@ -250,41 +367,91 @@ public final class QuickAccessTray: ObservableObject {
 
     // MARK: 自动收起(spec S3:默认关;开 = N 秒后托盘项消失,悬停暂停)
 
+    private func configuredAutoDismissDelay() -> TimeInterval {
+        TimeInterval(max(1, settings.shotTrayAutoDismissSeconds))
+    }
+
+    private var globallyPausesAutoDismiss: Bool {
+        panelHovered || contextMenuPresented
+    }
+
     private func scheduleAutoDismiss(for item: TrayShotItem) {
-        guard settings.shotTrayAutoDismiss, !panelHovered else { return }
-        let seconds = max(1, settings.shotTrayAutoDismissSeconds)
+        guard settings.shotTrayAutoDismiss,
+              !globallyPausesAutoDismiss,
+              !individuallyPausedItemIDs.contains(item.id) else { return }
+        var state = dismissStates[item.id]
+            ?? AutoDismissState(remaining: configuredAutoDismissDelay())
+        let delay = max(0.01, state.remaining)
+        let generation = UUID()
+        state.generation = generation
+        state.deadline = Date().addingTimeInterval(delay)
+        dismissStates[item.id] = state
         let work = DispatchWorkItem { [weak self, weak item] in
             MainActor.assumeIsolated {
                 guard let self, let item else { return }
+                guard self.dismissStates[item.id]?.generation == generation else { return }
                 self.remove(item)
             }
         }
         dismissWorkItems[item.id]?.cancel()
         dismissWorkItems[item.id] = work
-        DispatchQueue.main.asyncAfter(deadline: .now() + .seconds(seconds), execute: work)
+        DispatchQueue.main.asyncAfter(deadline: .now() + delay, execute: work)
     }
 
-    private func pauseAutoDismiss() {
-        for (_, work) in dismissWorkItems { work.cancel() }
-        dismissWorkItems.removeAll()
+    private func pauseAutoDismiss(forIDs ids: Set<UUID>) {
+        let now = Date()
+        for id in ids {
+            dismissWorkItems.removeValue(forKey: id)?.cancel()
+            guard var state = dismissStates[id] else { continue }
+            if let deadline = state.deadline {
+                state.remaining = max(0.01, deadline.timeIntervalSince(now))
+            }
+            state.deadline = nil
+            state.generation = UUID()
+            dismissStates[id] = state
+        }
+    }
+
+    private func updateGlobalAutoDismissPause() {
+        if globallyPausesAutoDismiss {
+            pauseAutoDismiss(forIDs: Set(items.map(\.id)))
+        } else {
+            resumeAutoDismiss()
+        }
     }
 
     /// F22:编辑器打开期间暂停该项的自动收起——编辑中托盘项凭空消失会连
     /// 文档一起丢(spec S4「不保存仍可重开继续」的前提是项还在)。
     func pauseAutoDismiss(for id: UUID) {
-        dismissWorkItems.removeValue(forKey: id)?.cancel()
+        individuallyPausedItemIDs.insert(id)
+        pauseAutoDismiss(forIDs: [id])
     }
 
     /// 编辑器关窗后恢复计时(设置开着才会真排)。
     func resumeAutoDismiss(for id: UUID) {
         guard let item = item(id: id) else { return }
+        individuallyPausedItemIDs.remove(id)
         scheduleAutoDismiss(for: item)
     }
 
     private func resumeAutoDismiss() {
         guard settings.shotTrayAutoDismiss else { return }
-        for item in items { scheduleAutoDismiss(for: item) }
+        for item in items where !individuallyPausedItemIDs.contains(item.id) {
+            scheduleAutoDismiss(for: item)
+        }
     }
+
+    private func resetAutoDismissTimersForCurrentSettings() {
+        pauseAutoDismiss(forIDs: Set(items.map(\.id)))
+        let delay = configuredAutoDismissDelay()
+        for item in items {
+            dismissStates[item.id] = AutoDismissState(remaining: delay)
+        }
+        resumeAutoDismiss()
+    }
+
+    /// 测试钩子：验证全局悬停恢复不会误启动“编辑中”的单项计时。
+    var scheduledAutoDismissItemIDs: Set<UUID> { Set(dismissWorkItems.keys) }
 
     // MARK: 抓屏避让(spec §10:冻结帧不含托盘)
 
@@ -594,6 +761,8 @@ private struct TrayDragSurface: NSViewRepresentable {
                                    size: fittedPreviewSize(for: item))
         view.onDragEnded = { completed in tray.dragEnded(item, completed: completed) }
         view.onClick = { tray.onOpenItem?(item) } // 点卡片 = 打开编辑器(spec S3)
+        view.provideContextMenu = { tray.contextMenu(for: item) }
+        view.onContextMenuPresented = { tray.setContextMenuPresented($0) }
         view.actionsVisible = actionsVisible
         view.actionsRectTopLeft = TrayCardView.actionsRect
     }
@@ -615,6 +784,8 @@ final class TrayDragNSView: NSView, NSDraggingSource {
     var onDragEnded: (Bool) -> Void = { _ in }
     /// 单击(未拖动)回调(托盘卡点击 = 打开编辑器,spec S3)。
     var onClick: (() -> Void)?
+    var provideContextMenu: (() -> NSMenu?)?
+    var onContextMenuPresented: (Bool) -> Void = { _ in }
     /// 悬停中(动作按钮可见)才对按钮区放行点击。
     var actionsVisible = false
     /// 动作按钮区(SwiftUI 左上原点坐标;hitTest 内换算)。
@@ -632,7 +803,8 @@ final class TrayDragNSView: NSView, NSDraggingSource {
             return bounds.contains(local) ? self : nil
         }
         guard let hit = super.hitTest(point), hit === self else { return super.hitTest(point) }
-        if actionsVisible {
+        // 右键即使落在悬浮按钮区域也归拖拽层处理，保证整张卡片都能弹菜单。
+        if actionsVisible, NSApp.currentEvent?.type != .rightMouseDown {
             let local = convert(point, from: superview)
             // 非 flipped NSView:y 从底往上;换算 SwiftUI 顶原点矩形
             let flippedY = bounds.height - local.y
@@ -645,6 +817,16 @@ final class TrayDragNSView: NSView, NSDraggingSource {
 
     override func mouseDown(with event: NSEvent) {
         mouseDownEvent = event
+    }
+
+    override func rightMouseDown(with event: NSEvent) {
+        guard let menu = provideContextMenu?() else {
+            super.rightMouseDown(with: event)
+            return
+        }
+        onContextMenuPresented(true)
+        NSMenu.popUpContextMenu(menu, with: event, for: self)
+        onContextMenuPresented(false)
     }
 
     override func mouseDragged(with event: NSEvent) {
@@ -691,5 +873,24 @@ final class TrayDragNSView: NSView, NSDraggingSource {
         DispatchQueue.main.async {
             MainActor.assumeIsolated { self.onDragEnded(completed) }
         }
+    }
+}
+
+private final class TrayClosureMenuItem: NSMenuItem {
+    private let handler: () -> Void
+
+    init(title: String, systemImage: String, handler: @escaping () -> Void) {
+        self.handler = handler
+        super.init(title: title, action: #selector(invoke), keyEquivalent: "")
+        target = self
+        image = NSImage(systemSymbolName: systemImage, accessibilityDescription: title)
+    }
+
+    required init(coder: NSCoder) {
+        fatalError("init(coder:) has not been implemented")
+    }
+
+    @objc private func invoke() {
+        handler()
     }
 }

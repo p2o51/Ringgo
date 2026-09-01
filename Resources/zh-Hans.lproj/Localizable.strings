@@ -64,6 +64,16 @@
 "tray.remove" = "移除(文件不动)";
 /* F22 tray card ✏️ tooltip: open annotation editor */
 "tray.annotate" = "标注";
+/* F21 tray card context menu */
+"tray.menu.copy_one" = "复制这个文件";
+/* F21 tray card context menu; %d = item count */
+"tray.menu.copy_all" = "复制全部 %d 个文件";
+/* F21 tray card context menu */
+"tray.menu.reveal_all" = "在 Finder 中显示全部";
+/* F21 tray card context menu; does not delete saved files */
+"tray.menu.close_one" = "关闭这个缩略图";
+/* F21 tray card context menu; does not delete saved files */
+"tray.menu.close_all" = "全部关闭";
 /* F22 editor tool */
 "editor.tool.select" = "选择";
 /* F22 editor tool */
